@@ -1,6 +1,7 @@
 import { renderHome } from '../views/home.js'
 import { renderUsers } from '../views/users.js'
 import { renderSettings } from '../views/settings.js'
+import { renderEnergy } from '../views/energy.js'
 
 export function renderDashboard(onLogout) {
     document.querySelector('#app').innerHTML = `
@@ -11,7 +12,7 @@ export function renderDashboard(onLogout) {
            style="width: 240px; min-height: 100vh;">
         
         <h4 class="mb-4">Panel</h4>
-  
+        <button class="btn btn-secondary mb-2" id="navEnergy">Energía</button>
         <button class="btn btn-secondary mb-2" id="navHome">Inicio</button>
         <button class="btn btn-secondary mb-2" id="navUsers">Usuarios</button>
         <button class="btn btn-secondary mb-2" id="navSettings">Ajustes</button>
@@ -43,7 +44,14 @@ export function renderDashboard(onLogout) {
     content.innerHTML = renderSettings()
   }
 
+  function showEnergy() {
+    renderEnergy().then(html => {
+      content.innerHTML = html
+    })
+  }
+
   // navegación
+  document.querySelector('#navEnergy').onclick = showEnergy
   document.querySelector('#navHome').onclick = showHome
   document.querySelector('#navUsers').onclick = showUsers
   document.querySelector('#navSettings').onclick = showSettings
