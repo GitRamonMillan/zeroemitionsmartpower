@@ -1,37 +1,44 @@
-import { getEnergy, updateEnergy } from '../services/energy.js'
+import Chart from 'chart.js/auto'
+import { getEnergy } from '../services/energy.js'
+
+let chartInstance = null
 
 export async function renderEnergy() {
   const data = await getEnergy()
 
   setTimeout(() => {
-    document.querySelector('#saveEnergy').onclick = async () => {
-      const inputs = document.querySelectorAll('.energy-input')
+    const ctx = document.getElementById('energyChart')
 
-      const values = Array.from(inputs).map(i => Number(i.value))
-
-      await updateEnergy(values)
-
-      alert('Energía actualizada ⚡')
+    // destruir gráfico anterior si existe (evita duplicados)
+    if (chartInstance) {
+      chartInstance.destroy()
     }
+
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      backgroundColor: 'rgba(79, 70, 229, 0.5)',
+        borderColor: '#4f46e5',
+      data: {
+        labels: data.map((_, i) => `Día ${i + 1}`),
+        datasets: [{
+            tension: 0.4,
+            fill: true
+          }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: true }
+        }
+      }
+    })
   }, 0)
 
   return `
-    <h2>Consumo de energía ⚡</h2>
+    <h2>⚡ Consumo de energía</h2>
 
     <div class="card p-3 mt-3">
-      ${data.map((v, i) => `
-        <div class="mb-2 d-flex gap-2 align-items-center">
-          <label>Día ${i + 1}</label>
-          <input type="number"
-                 class="form-control energy-input"
-                 value="${v}"
-                 style="max-width:120px;">
-        </div>
-      `).join('')}
+      <canvas id="energyChart"></canvas>
     </div>
-
-    <button class="btn btn-primary mt-3" id="saveEnergy">
-      Guardar cambios
-    </button>
   `
 }
