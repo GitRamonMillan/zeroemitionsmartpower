@@ -5,11 +5,11 @@ import { renderEnergy } from '../views/energy.js'
 
 export function renderDashboard(onLogout) {
     document.querySelector('#app').innerHTML = `
-    <div class="d-flex vh-100">
+    <div class="d-flex" style="height: 100vh; overflow: hidden;">
   
       <!-- SIDEBAR -->
-      <div class="bg-dark text-white p-3 d-flex flex-column shadow-lg"
-           style="width: 240px; min-height: 100vh;">
+      <div class="bg-dark text-white p-3 d-flex flex-column"
+     style="width: 240px; height: 100vh;">
         
         <h4 class="mb-4">Panel</h4>
         <button class="btn btn-secondary mb-2" id="navEnergy">Energía</button>
@@ -25,7 +25,10 @@ export function renderDashboard(onLogout) {
       </div>
   
       <!-- CONTENT -->
-      <div class="flex-grow-1 p-4" id="content"></div>
+      <div class="flex-grow-1 p-4"
+            id="content"
+            style="overflow-y: auto;">
+        </div>
   
     </div>
   `
@@ -45,9 +48,10 @@ export function renderDashboard(onLogout) {
   }
 
   function showEnergy() {
-    renderEnergy().then(html => {
-      content.innerHTML = html
-    })
+    content.innerHTML = renderEnergy()
+    // renderEnergy().then(html => {
+    //   content.innerHTML = html
+    // })
   }
 
   // navegación
