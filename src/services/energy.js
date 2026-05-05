@@ -41,24 +41,6 @@ export function getEnergy() {
         }
       }
   
-    // function generateDaily(schedule) {
-    //     return Array.from({ length: 24 }, (_, h) => {
-    //       const isOperating = schedule.operationHours.includes(h)
-      
-    //       const kwh = isOperating
-    //         ? Math.floor(Math.random() * 4) + 3   // 3–6 kWh
-    //         : Math.floor(Math.random() * 2) + 1   // 1–2 kWh
-      
-    //       const co2 = kwh * factorEmisionxKWhDiario
-      
-    //       return {
-    //         hour: `${h}:00`,
-    //         state: isOperating ? "operational" : "idle",
-    //         kwh: kwh,
-    //         co2: co2
-    //       }
-    //     })
-    //   }
     function generateDaily(schedule) {
         return Array.from({ length: 24 }, (_, h) => {
       
@@ -93,24 +75,38 @@ export function getEnergy() {
         })
       }
 
-    function generateWeekly() {
-      const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-      return days.map(d => ({
-        day: d,
-        kwh: Math.floor(Math.random() * 40) + 20
-      }))
-    }
-  
-    function generateMonthly() {
-      return Array.from({ length: 30 }, (_, d) => ({
-        day: d + 1,
-        kwh: Math.floor(Math.random() * 50) + 20
-      }))
-    }
+      function shouldShutdownATM(atm) {
+        const lastHours = atm.daily.slice(-3)
+      
+        const lowConsumption = lastHours.every(h => h.kwh <= 2)
+        const isIdleWindow = lastHours.every(h => h.state === "idle")
+      
+        return lowConsumption && isIdleWindow
+      }
+
+      function computeShutdownMap(groups) {
+        const actions = []
+      
+        groups.forEach(branch => {
+          branch.atms.forEach(atm => {
+      
+            const shouldOff = shouldShutdownATM(atm)
+      
+            actions.push({
+              branch: branch.name,
+              atmId: atm.id,
+              action: shouldOff ? "OFF" : "ON",
+              confidence: shouldOff ? 0.85 : 0.2
+            })
+          })
+        })
+      
+        return actions
+      }
   
     return groups.map(group => ({
       name: group,
-      atms: Array.from({ length: 10 }, (_, i) => {
+      atms: Array.from({ length: 3 }, (_, i) => {
         const schedule = generateSchedule()
         const daily = generateDaily(schedule)
         const total = daily.reduce((sum, h) => sum + h.kwh, 0)
@@ -145,3 +141,4 @@ export function getEnergy() {
       })
     }))
   }
+
