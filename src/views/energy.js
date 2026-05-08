@@ -851,7 +851,6 @@ function updateCO2Chart(impact) {
             align-items:center;
             flex-wrap:wrap;">
             <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
-            
                 <canvas 
                 id="kwh-${branch.name}-${atm.id}" 
                 width="220" 
@@ -966,79 +965,171 @@ function updateCO2Chart(impact) {
   }
 
   //---
-  function renderATMkWh(atmKey, atmImpactItem) {
+//   function renderATMkWh(atmKey, atmImpactItem) {
+//     const ctx = document.getElementById(`kwh-${atmKey}`)
+  
+//     if (!ctx) return
+  
+//     if (atmKwhCharts[atmKey]) {
+//       atmKwhCharts[atmKey].data.datasets[0].data = [
+//         atmImpactItem.currentKwh,
+//         atmImpactItem.optimizedKwh
+//       ]
+//       atmKwhCharts[atmKey].update()
+//       return
+//     }
+  
+//     atmKwhCharts[atmKey] = new Chart(ctx, {
+//       type: "bar",
+//       data: {
+//         labels: ["Actual", "Optimizado"],
+//         datasets: [{
+//           label: "kWh",
+//           data: [
+//             atmImpactItem.currentKwh,
+//             atmImpactItem.optimizedKwh
+//           ],
+//           backgroundColor: ["#f59e0b", "#22c55e"]
+//         }]
+//       },
+//       options: {
+//         responsive: false,
+//         plugins: { legend: { display: false } },
+//         scales: {
+//           y: { beginAtZero: true }
+//         }
+//       }
+//     })
+//   }
+
+function renderATMkWh(atmKey, atmImpactItem) {
+
     const ctx = document.getElementById(`kwh-${atmKey}`)
   
     if (!ctx) return
   
+    // SI YA EXISTE → UPDATE
     if (atmKwhCharts[atmKey]) {
+  
       atmKwhCharts[atmKey].data.datasets[0].data = [
         atmImpactItem.currentKwh,
         atmImpactItem.optimizedKwh
       ]
+  
       atmKwhCharts[atmKey].update()
+  
       return
     }
   
+    // SOLO SE CREA UNA VEZ
     atmKwhCharts[atmKey] = new Chart(ctx, {
       type: "bar",
+  
       data: {
         labels: ["Actual", "Optimizado"],
+  
         datasets: [{
           label: "kWh",
+  
           data: [
             atmImpactItem.currentKwh,
             atmImpactItem.optimizedKwh
           ],
+  
           backgroundColor: ["#f59e0b", "#22c55e"]
         }]
       },
+  
       options: {
         responsive: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true }
+        animation: {
+          duration: 500
         }
       }
     })
   }
 
-  function renderATMCo2(atmKey, atmImpactItem) {
+//   function renderATMCo2(atmKey, atmImpactItem) {
+//     const ctx = document.getElementById(`co2-${atmKey}`)
+//     if (!ctx) return
+  
+//     if (atmCo2Charts[atmKey]) {
+//       atmCo2Charts[atmKey].data.datasets[0].data = [
+//         atmImpactItem.currentCO2,
+//         atmImpactItem.optimizedCO2
+//       ]
+//       atmCo2Charts[atmKey].update()
+//       return
+//     }
+  
+//     atmCo2Charts[atmKey] = new Chart(ctx, {
+//       type: "bar",
+//       data: {
+//         labels: ["Actual", "Optimizado"],
+//         datasets: [{
+//           label: "CO₂",
+//           data: [
+//             atmImpactItem.currentCO2,
+//             atmImpactItem.optimizedCO2
+//           ],
+//           backgroundColor: ["#ef4444", "#3b82f6"]
+//         }]
+//       },
+//       options: {
+//         responsive: false,
+//         plugins: { legend: { display: false } },
+//         scales: {
+//           y: { beginAtZero: true }
+//         }
+//       }
+//     })
+//   }
+
+function renderATMCo2(atmKey, atmImpactItem) {
+
     const ctx = document.getElementById(`co2-${atmKey}`)
+  
     if (!ctx) return
   
     if (atmCo2Charts[atmKey]) {
+  
       atmCo2Charts[atmKey].data.datasets[0].data = [
         atmImpactItem.currentCO2,
         atmImpactItem.optimizedCO2
       ]
+  
       atmCo2Charts[atmKey].update()
+  
       return
     }
   
     atmCo2Charts[atmKey] = new Chart(ctx, {
       type: "bar",
+  
       data: {
         labels: ["Actual", "Optimizado"],
+  
         datasets: [{
           label: "CO₂",
+  
           data: [
             atmImpactItem.currentCO2,
             atmImpactItem.optimizedCO2
           ],
+  
           backgroundColor: ["#ef4444", "#3b82f6"]
         }]
       },
+  
       options: {
         responsive: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true }
+        animation: {
+          duration: 500
         }
       }
     })
   }
-
+  
   function renderAllATMCharts(atmImpact) {
 
     atmImpact.forEach(item => {
