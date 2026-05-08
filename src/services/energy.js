@@ -5,12 +5,47 @@ const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
 //fuente : https://huellachile.mma.gob.cl/wp-content/uploads/2024/11/HuellaChile-DCC-Factores-de-emision-nivel-basico_v3.pdf
 
 const probabilidadHoraPeak =  0.25
+const cajerosPorSucursal = 2
 
 export function updateEnergy(values) {
   return api.updateEnergy(values)
 }
 
 export function getEnergy() {
+  const groups = ["Agustinas", "Huérfanos", "Moneda"]
+
+  function generateSchedule() {
+    const start = Math.floor(Math.random() * 4) + 7
+    const duration = Math.floor(Math.random() * 6) + 10
+    const operationHours = Array.from({ length: duration }, (_, i) => (start + i) % 24)
+    const peakOperationHours = operationHours.filter(h => {
+      const isPeakWindow = (h >= 9 && h <= 11) || (h >= 17 && h <= 19)
+      return isPeakWindow && Math.random() < probabilidadHoraPeak
+    })
+    const idleHours = Array.from({ length: 24 }, (_, h) => h).filter(h => !operationHours.includes(h))
+    return { operationHours, peakOperationHours, idleHours }
+  }
+
+  return groups.map(group => ({
+    name: group,
+    atms: Array.from({ length: cajerosPorSucursal }, (_, i) => {
+      const schedule = generateSchedule()
+      return {
+        id: `ATM-${i + 1}`,
+        schedule,
+        daily: [], // empezamos vacío
+        idleKwh: 0,
+        operationalKwh: 0,
+        peakKwh: 0,
+        consumption: 0,
+        co2: 0
+      }
+    })
+  }))
+}
+
+
+  export function getYesterdayEnergy() {
     const groups = ["Agustinas", "Huérfanos", "Moneda"]
   
     function generateSchedule() {
@@ -74,39 +109,10 @@ export function getEnergy() {
           }
         })
       }
-
-      function shouldShutdownATM(atm) {
-        const lastHours = atm.daily.slice(-3)
-      
-        const lowConsumption = lastHours.every(h => h.kwh <= 2)
-        const isIdleWindow = lastHours.every(h => h.state === "idle")
-      
-        return lowConsumption && isIdleWindow
-      }
-
-      function computeShutdownMap(groups) {
-        const actions = []
-      
-        groups.forEach(branch => {
-          branch.atms.forEach(atm => {
-      
-            const shouldOff = shouldShutdownATM(atm)
-      
-            actions.push({
-              branch: branch.name,
-              atmId: atm.id,
-              action: shouldOff ? "OFF" : "ON",
-              confidence: shouldOff ? 0.85 : 0.2
-            })
-          })
-        })
-      
-        return actions
-      }
   
     return groups.map(group => ({
       name: group,
-      atms: Array.from({ length: 3 }, (_, i) => {
+      atms: Array.from({ length: cajerosPorSucursal }, (_, i) => {
         const schedule = generateSchedule()
         const daily = generateDaily(schedule)
         const total = daily.reduce((sum, h) => sum + h.kwh, 0)
@@ -142,3 +148,5 @@ export function getEnergy() {
     }))
   }
 
+
+  

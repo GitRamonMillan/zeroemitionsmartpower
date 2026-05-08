@@ -34,3 +34,4 @@ if (localStorage.getItem('auth') === 'true') {
 } else {
   showLogin()
 }
+

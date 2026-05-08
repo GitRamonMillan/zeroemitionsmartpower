@@ -1,4 +1,5 @@
 import { getEnergy } from '../services/energy.js'
+import { getYesterdayEnergy } from '../services/energy.js'
 
 const factorEmisionxKWhAnual = 0.2421 //Factor de emisión del Sistema eléctrico Nacional 2023 (SEN) (ANUAL)
 const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
@@ -10,6 +11,12 @@ let selectedAtm = null
 let metaReduccionCO2 = 0.5
 
 let liveInterval = null
+let horaActual =  -1
+let milisegundosDuracionHoraSimulada = 5000
+const atmCharts = {}
+
+const atmKwhCharts = {}
+const atmCo2Charts = {}
 
 const defaultChartOptions = {
     animation: {
@@ -18,41 +25,49 @@ const defaultChartOptions = {
     }
   }
 
-function computeShutdownMap(groups) {
+let yesterday = getYesterdayEnergy()
+let groups = getEnergy()
+
+
+function computeShutdownMap(groups, yesterdayData) {
     return groups.flatMap(branch =>
       branch.atms.map(atm => {
-        const shouldOff = shouldShutdownATM(atm)
+        // buscar el ATM correspondiente en yesterdayData
+        const yesterdayBranch = yesterdayData.find(b => b.name === branch.name)
+        const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
+  
+        const shouldOff = yesterdayATM
+          ? shouldShutdownATMWithYesterday(atm, yesterdayATM)
+          : false // si no hay data de ayer, default ON
   
         return {
           branch: branch.name,
           atmId: atm.id,
           action: shouldOff ? "OFF" : "ON",
           confidence: Math.random() * 0.3 + (shouldOff ? 0.7 : 0.2),
-          explanation: generateLLMExplanation(atm) // 👈 nuevo
+          explanation: generateLLMExplanation(atm)
         }
       })
     )
   }
 
-export function startLiveEnergyEngine() {
-  if (liveInterval) clearInterval(liveInterval)
-
-  liveInterval = setInterval(() => {
-    const groups = getEnergy()
-
-    const shutdownMap = computeShutdownMap(groups)
-
-    renderShutdownPanel(shutdownMap)
-
-    console.log("live update", shutdownMap)
-  }, 5000) // cada 5s (ajustable)
-}
+  function shouldShutdownATMWithYesterday(todayATM, yesterdayATM) {
+    const lastHours = todayATM.daily.slice(-3) // últimas 3 horas
+  
+    // bajo consumo hoy
+    const lowConsumption = lastHours.every(h => h.kwh <= 2)
+    const isIdleWindow = lastHours.every(h => h.state === "idle")
+  
+    // consumo histórico ayer para la misma hora
+    const yesterdayHours = yesterdayATM.daily.slice(-3)
+    const wasIdleYesterday = yesterdayHours.every(h => h.state === "idle")
+    
+    // decisión combinada
+    return lowConsumption && isIdleWindow && wasIdleYesterday
+  }
 
 export function renderEnergy() {
-  const groups = getEnergy()
-  const shutdownMap = computeShutdownMap(groups)
-
-    console.log(groups);
+  const shutdownMap = computeShutdownMap(groups, yesterday)
 
     const branchEnergy = groups.map(branch => {
         let operational = 0
@@ -81,13 +96,6 @@ export function renderEnergy() {
         }
     })
 
-    console.log(branchEnergy);
-    //detecta peor sucursal
-    const worst = branchEnergy.reduce((a, b) =>
-    a.idle > b.idle ? a : b
-    )
-    console.log(worst);
-
     // aplanar todos los cajeros
     const allAtms = groups.flatMap(g => g.atms)
 
@@ -96,11 +104,11 @@ export function renderEnergy() {
 
     const maxAtm = allAtms.reduce((a, b) =>
         a.consumption > b.consumption ? a : b
-  )
+    )
 
-  const minAtm = allAtms.reduce((a, b) =>
-    a.consumption < b.consumption ? a : b
-  )
+    const minAtm = allAtms.reduce((a, b) =>
+        a.consumption < b.consumption ? a : b
+    )
 
 
   function renderBranchChart(data) {
@@ -112,8 +120,10 @@ export function renderEnergy() {
       co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0)
     }))
 
-    console.log('branchData',branchData)
-  
+    if (branchChart) {
+        branchChart.destroy()
+      }
+
     branchChart = new window.Chart(ctx, {
       type: 'bar',
       data: {
@@ -147,8 +157,6 @@ export function renderEnergy() {
       co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0),
       metaCO2: metaReduccionCO2
     }))
-
-    console.log('branchChartCO2',branchData)
   
     branchChartCO2 = new window.Chart(ctx, {
       type: 'bar',
@@ -326,6 +334,10 @@ export function renderEnergy() {
     })
   }
 
+ 
+
+ 
+
   
 
   
@@ -337,7 +349,9 @@ setTimeout(() => {
     renderBranchChartCO2(groups)
     renderShutdownPanel(shutdownMap)
 
-    startLiveEnergyEngine() 
+
+renderATMPanels(groups)
+    //startLiveEnergyEngine() 
 
       const impact = computeCO2Impact(groups, shutdownMap)
         renderCO2Impact(impact)
@@ -350,17 +364,28 @@ setTimeout(() => {
             renderCO2Chart(impact) 
             renderBranchChart(groups)
 
+            //..impacto por cajero
+            const atmImpact = computeATMImpact(groups, shutdownMap)
+            renderAllATMCharts(atmImpact)
+
         })
       
   }, 0)
 
   return `
     <h2 class="mb-4">⚡ Dashboard Energía</h2>
-
+    <div class="card p-3 mb-3" style="flex: 1; min-width: 150px; text-align:center;">
+    <h5>Hora Simulada</h5>
+    <div id="horaActualDisplay" style="font-size:24px; font-weight:bold;">00:00</div>
+</div>
     <!-- KPIs -->
     <div class="row mb-4">
 
-      <div class="col-md-3">
+    <div id="autopilotPanel" style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+        <label for="autopilotSwitch">Autopilot</label>
+        <input type="checkbox" id="autopilotSwitch">
+    </div>
+    <!--  <div class="col-md-3">
         <div class="card p-3 shadow-sm border-start border-4 border-primary">
           <h6>Consumo total</h6>
           <h3>${total} kWh</h3>
@@ -388,7 +413,7 @@ setTimeout(() => {
           <h5>${minAtm.id}</h5>
           <small>${minAtm.consumption} kWh</small>
         </div>
-      </div>
+      </div>-->
 
     </div>
 
@@ -398,13 +423,21 @@ setTimeout(() => {
             <div id="shutdownPanel"></div>
         </div>
         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+            <h5>Ayer vs Hoy</h5>
+            <div id="atmPanel"></div>
+        </div>
+        <!--<div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+            <h5>Impacto CO₂ en Tiempo Real por ATM</h5>
+            <canvas id="atmImpactChart"></canvas>
+        </div>-->
+        <!--<div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
             <h5>Impacto CO₂ en Tiempo Real</h5>
             <div id="co2ImpactPanel"></div>
-        </div>
-        <div class="card p-3 mb-3">
+        </div>-->
+        <!--<div class="card p-3 mb-3">
             <h5>CO₂ por Sucursal (Antes vs Optimizado)</h5>
             <canvas id="co2BranchChart"></canvas>
-        </div>
+        </div>-->
     </div>
 
     <!-- CHART -->
@@ -476,23 +509,6 @@ function renderShutdownPanel(data) {
     `).join("")
   }
 
-  function shouldShutdownATM(atm) {
-    const lastHours = atm.daily.slice(-3)
-  
-    const lowConsumption = lastHours.every(h => h.kwh <= 2)
-    const allIdle = lastHours.every(h => h.state === "idle")
-  
-    // más realista: ventana reciente más amplia
-    const recentPeak = atm.daily
-      .slice(-8)
-      .some(h => h.state === "peak_operational")
-  
-    // evitar falsos positivos si aún hay operación parcial
-    const hasAnyOperational = lastHours.some(h => h.state === "operational")
-  
-    return lowConsumption && allIdle && !recentPeak && !hasAnyOperational
-  }
-
   //motor de simulacion
   function startSimulationEngine(onUpdate) {
     if (liveInterval) {
@@ -501,9 +517,47 @@ function renderShutdownPanel(data) {
       }
   
     liveInterval = setInterval(() => {
-      const groups = getEnergy()
+        
   
-      const decisions = computeShutdownMap(groups)
+      horaActual+=1
+        if (horaActual > 24) {
+
+            // guardar el día actual como yesterday
+            //yesterday = structuredClone(groups)
+        
+            // reiniciar groups al estado inicial
+            groups = getEnergy()//structuredClone(initialGroups)
+        
+            // volver a empezar desde la hora 1
+            //horaActual = 0
+        
+            console.log('Nuevo día iniciado')
+        }
+        horaActual = horaActual > 24 ? 0:horaActual;
+
+        //console.log('horaActual:',horaActual);
+        updateHoraPanel()
+
+    groups.forEach(branch => {
+        branch.atms.forEach(atm => {
+          updateDailyATM(atm, horaActual)
+
+          // buscar ATM correspondiente en yesterday
+      const yesterdayBranch = yesterday.find(b => b.name === branch.name)
+      const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
+
+      // actualizar gráfico
+      updateATMChart(branch.name, atm, yesterdayATM)
+
+      // actualizar estado ON/OFF visual
+      const stateEl = document.getElementById(`state-${branch.name}-${atm.id}`)
+      const shouldOff = shouldShutdownATMWithYesterday(atm, yesterdayATM)
+      stateEl.textContent = shouldOff ? "OFF" : "ON"
+        })
+      })
+      //console.log(groups)
+
+      const decisions = computeShutdownMap(groups, yesterday)
       const impact = computeCO2Impact(groups, decisions) 
   
       onUpdate({
@@ -514,32 +568,10 @@ function renderShutdownPanel(data) {
       })
       updateCO2Chart(impact) 
             
-    }, 5000)//espera para refresh
+    }, milisegundosDuracionHoraSimulada)//espera para refresh
   }
 
-  
 
-  function updateCharts(groups) {
-    if (!branchChart) return
-  
-    const totals = groups.map(b =>
-      b.atms.reduce((sum, atm) => sum + atm.consumption, 0)
-    )
-  
-    branchChart.data.datasets[0].data = totals
-    branchChart.update()
-  
-    if (!branchChartCO2) return
-  
-    const totals2 = groups.map(b =>
-      b.atms.reduce((sum, atm) => sum + atm.consumption, 0)
-    )
-  
-    branchChartCO2.data.datasets[0].data = totals2
-    branchChartCO2.update()
-
-    
-  }
 
   function sendToRelay(decision) {
     console.log(`⚡ [SIMULATED RELAY] ${decision.atmId} → ${decision.action}`)
@@ -668,7 +700,11 @@ function renderCO2Chart(impact) {
   if (!ctx) return
 
   // destruir si ya existe (importante)
-  if (co2Chart) co2Chart.destroy()
+  //console.log('renderCO2Chart');
+  if (co2Chart) {
+    //console.log('destruir renderCO2Chart',co2Chart);
+    co2Chart.destroy()
+  }
 
   const labels = impact.branches.map(b => b.branch)
 
@@ -730,6 +766,8 @@ function renderCO2Chart(impact) {
 
 function updateCO2Chart(impact) {
     if (!co2Chart) return
+
+    console.log('actualizar renderCO2Chart',impact);
   
     const newCurrent = impact.branches.map(b => b.currentCO2)
     const newOptimized = impact.branches.map(b => b.optimizedCO2)
@@ -750,4 +788,265 @@ function updateCO2Chart(impact) {
     co2Chart.data.datasets[1].backgroundColor = "#3b82f6"
     co2Chart.update()
     }, 300)
+  }
+
+  function generateHourData(schedule, h) {
+    const isIdle = schedule.idleHours.includes(h)
+    const isPeak = schedule.peakOperationHours.includes(h)
+    const isOperating = schedule.operationHours.includes(h)
+  
+    let state, kwh
+  
+    if (isIdle) {
+      state = "idle"
+      kwh = Math.floor(Math.random() * 2) + 1
+    } else if (isPeak) {
+      state = "peak_operational"
+      kwh = Math.floor(Math.random() * 3) + 7
+    } else if (isOperating) {
+      state = "operational"
+      kwh = Math.floor(Math.random() * 4) + 3
+    }
+  
+    const co2 = kwh * factorEmisionxKWhDiario
+  
+    return { hour: `${h}:00`, state, kwh, co2 }
+  }
+
+  function updateDailyATM(atm, horaActual) {
+    // generar solo la hora actual
+    const newHourData = generateHourData(atm.schedule, horaActual)
+  
+    // agregar al daily
+    atm.daily.push(newHourData)
+  
+    // recalcular totales
+    atm.idleKwh = atm.daily.filter(h => h.state === "idle").reduce((sum, h) => sum + h.kwh, 0)
+    atm.operationalKwh = atm.daily.filter(h => h.state === "operational").reduce((sum, h) => sum + h.kwh, 0)
+    atm.peakKwh = atm.daily.filter(h => h.state === "peak_operational").reduce((sum, h) => sum + h.kwh, 0)
+    atm.consumption = atm.idleKwh + atm.operationalKwh + atm.peakKwh
+    atm.co2 = atm.daily.reduce((sum, h) => sum + h.co2, 0)
+  }
+
+  function renderATMPanels(groups) {
+    const panel = document.getElementById("atmPanel")
+    panel.innerHTML = "" // limpiar
+  
+    groups.forEach(branch => {
+      branch.atms.forEach(atm => {
+        const atmDiv = document.createElement("div")
+        atmDiv.className = "atm-item"
+        atmDiv.id = `atm-${branch.name}-${atm.id}`
+  
+        // atmDiv.innerHTML = `
+        //   <h4>${branch.name} - ${atm.id}</h4>
+        //   <div>Estado: <span id="state-${branch.name}-${atm.id}">ON</span></div>
+        //   <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
+        // `
+        atmDiv.innerHTML = `
+            <strong>${branch.name} - ${atm.id}</strong> Estado: <span id="state-${branch.name}-${atm.id}">ON</span>
+            <div style="display:flex;
+            flex-direction:row;
+            gap:12px;
+            align-items:center;
+            flex-wrap:wrap;">
+            <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
+            
+                <canvas 
+                id="kwh-${branch.name}-${atm.id}" 
+                width="220" 
+                height="120">
+                </canvas>
+                <canvas 
+                id="co2-${branch.name}-${atm.id}" 
+                width="220" 
+                height="120">
+                </canvas>
+            </div>
+            `
+        panel.appendChild(atmDiv)
+      })
+    })
+  }
+
+  function updateATMChart(branchName, atm, yesterdayATM) {
+    const ctxId = `chart-${branchName}-${atm.id}`
+    const ctx = document.getElementById(ctxId).getContext("2d")
+  
+    const labels = atm.daily.map(h => h.hour) // horas llenadas hasta ahora
+  
+    const todayDataKwh = atm.daily.map(h => h.kwh)
+    const yesterdayDataKwh = yesterdayATM ? yesterdayATM.daily.slice(0, atm.daily.length).map(h => h.kwh) : []
+  
+    if (atmCharts[ctxId]) {
+      // actualizar
+      atmCharts[ctxId].data.labels = labels
+      atmCharts[ctxId].data.datasets[0].data = todayDataKwh
+      atmCharts[ctxId].data.datasets[1].data = yesterdayDataKwh
+      atmCharts[ctxId].update()
+    } else {
+      // crear por primera vez
+      atmCharts[ctxId] = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Hoy", data: todayDataKwh, borderColor: "blue", fill: false },
+            { label: "Ayer", data: yesterdayDataKwh, borderColor: "gray", fill: false, borderDash: [5,5] }
+          ]
+        },
+        options: {
+          responsive: false,
+          scales: { y: { beginAtZero: true } }
+        }
+      })
+    }
+  }
+
+  function updateHoraPanel() {
+    const display = document.getElementById("horaActualDisplay")
+    if (!display) return
+  
+    // Convertimos horaActual a formato HH:00
+    const hh = horaActual.toString().padStart(2, "0")
+    display.textContent = `${hh}:00`
+  }
+
+  function computeATMImpact(groups, shutdownMap) {
+    const atmImpact = []
+  
+    groups.forEach(branch => {
+  
+      branch.atms.forEach(atm => {
+  
+        let currentKwh = 0
+        let optimizedKwh = 0
+  
+        let currentCO2 = 0
+        let optimizedCO2 = 0
+  
+        const decision = shutdownMap.find(
+          d => d.branch === branch.name && d.atmId === atm.id
+        )
+  
+        atm.daily.forEach(hour => {
+  
+          currentKwh += hour.kwh
+          currentCO2 += hour.co2
+  
+          // simulación optimizada
+          if (
+            decision?.action === "OFF" &&
+            hour.state === "idle"
+          ) {
+            return
+          }
+  
+          optimizedKwh += hour.kwh
+          optimizedCO2 += hour.co2
+        })
+  
+        atmImpact.push({
+          branch: branch.name,
+          atmId: atm.id,
+  
+          currentKwh,
+          optimizedKwh,
+  
+          currentCO2,
+          optimizedCO2,
+  
+          savingsKwh: currentKwh - optimizedKwh,
+          savingsCO2: currentCO2 - optimizedCO2
+        })
+      })
+    })
+  
+    return atmImpact
+  }
+
+  //---
+  function renderATMkWh(atmKey, atmImpactItem) {
+    const ctx = document.getElementById(`kwh-${atmKey}`)
+  
+    if (!ctx) return
+  
+    if (atmKwhCharts[atmKey]) {
+      atmKwhCharts[atmKey].data.datasets[0].data = [
+        atmImpactItem.currentKwh,
+        atmImpactItem.optimizedKwh
+      ]
+      atmKwhCharts[atmKey].update()
+      return
+    }
+  
+    atmKwhCharts[atmKey] = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["Actual", "Optimizado"],
+        datasets: [{
+          label: "kWh",
+          data: [
+            atmImpactItem.currentKwh,
+            atmImpactItem.optimizedKwh
+          ],
+          backgroundColor: ["#f59e0b", "#22c55e"]
+        }]
+      },
+      options: {
+        responsive: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    })
+  }
+
+  function renderATMCo2(atmKey, atmImpactItem) {
+    const ctx = document.getElementById(`co2-${atmKey}`)
+    if (!ctx) return
+  
+    if (atmCo2Charts[atmKey]) {
+      atmCo2Charts[atmKey].data.datasets[0].data = [
+        atmImpactItem.currentCO2,
+        atmImpactItem.optimizedCO2
+      ]
+      atmCo2Charts[atmKey].update()
+      return
+    }
+  
+    atmCo2Charts[atmKey] = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["Actual", "Optimizado"],
+        datasets: [{
+          label: "CO₂",
+          data: [
+            atmImpactItem.currentCO2,
+            atmImpactItem.optimizedCO2
+          ],
+          backgroundColor: ["#ef4444", "#3b82f6"]
+        }]
+      },
+      options: {
+        responsive: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    })
+  }
+
+  function renderAllATMCharts(atmImpact) {
+
+    atmImpact.forEach(item => {
+  
+      const key = `${item.branch}-${item.atmId}`
+  
+      renderATMkWh(key, item)
+      renderATMCo2(key, item)
+  
+    })
   }

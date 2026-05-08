@@ -23,6 +23,11 @@ export const api = {
     await delay(200)
     return getDB().energy
   },
+  
+  async getYesterdayData() {
+    await delay(200)
+    return getDB().energy
+  },
 
   async updateEnergy(newValues) {
     await delay(200)
