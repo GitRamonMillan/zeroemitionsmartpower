@@ -345,6 +345,8 @@ export function renderEnergy() {
   
 
 setTimeout(() => {
+
+
     renderBranchChart(groups)
     renderBranchChartCO2(groups)
     renderShutdownPanel(shutdownMap)
@@ -509,7 +511,7 @@ function renderShutdownPanel(data) {
     `).join("")
   }
 
-  //motor de simulacion
+
   function startSimulationEngine(onUpdate) {
     if (liveInterval) {
         clearInterval(liveInterval)
@@ -517,45 +519,32 @@ function renderShutdownPanel(data) {
       }
   
     liveInterval = setInterval(() => {
-        
-  
-      horaActual+=1
+        horaActual+=1
         if (horaActual > 24) {
-
-            // guardar el día actual como yesterday
-            //yesterday = structuredClone(groups)
-        
-            // reiniciar groups al estado inicial
-            groups = getEnergy()//structuredClone(initialGroups)
-        
-            // volver a empezar desde la hora 1
-            //horaActual = 0
-        
+            groups = getEnergy()
             console.log('Nuevo día iniciado')
         }
         horaActual = horaActual > 24 ? 0:horaActual;
 
-        //console.log('horaActual:',horaActual);
         updateHoraPanel()
 
-    groups.forEach(branch => {
-        branch.atms.forEach(atm => {
-          updateDailyATM(atm, horaActual)
+        groups.forEach(branch => {
+            branch.atms.forEach(atm => {
+                updateDailyATM(atm, horaActual)
 
-          // buscar ATM correspondiente en yesterday
-      const yesterdayBranch = yesterday.find(b => b.name === branch.name)
-      const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
+                // buscar ATM correspondiente en yesterday
+                const yesterdayBranch = yesterday.find(b => b.name === branch.name)
+                const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
 
-      // actualizar gráfico
-      updateATMChart(branch.name, atm, yesterdayATM)
+                // actualizar gráfico
+                updateATMChart(branch.name, atm, yesterdayATM)
 
-      // actualizar estado ON/OFF visual
-      const stateEl = document.getElementById(`state-${branch.name}-${atm.id}`)
-      const shouldOff = shouldShutdownATMWithYesterday(atm, yesterdayATM)
-      stateEl.textContent = shouldOff ? "OFF" : "ON"
-        })
+                // actualizar estado ON/OFF visual
+                const stateEl = document.getElementById(`state-${branch.name}-${atm.id}`)
+                const shouldOff = shouldShutdownATMWithYesterday(atm, yesterdayATM)
+                stateEl.textContent = shouldOff ? "OFF" : "ON"
+                    })
       })
-      //console.log(groups)
 
       const decisions = computeShutdownMap(groups, yesterday)
       const impact = computeCO2Impact(groups, decisions) 
@@ -589,7 +578,6 @@ function renderShutdownPanel(data) {
       .slice(-8)
       .some(h => h.state === "peak_operational")
   
-    //lógica estilo LLM
     if (idleHours === 3 && avgConsumption <= 2 && !hadRecentPeak) {
       return "Apagado recomendado: inactividad sostenida y consumo bajo detectado."
     }
@@ -699,12 +687,7 @@ function renderCO2Chart(impact) {
   const ctx = document.getElementById("co2BranchChart")
   if (!ctx) return
 
-  // destruir si ya existe (importante)
-  //console.log('renderCO2Chart');
-  if (co2Chart) {
-    //console.log('destruir renderCO2Chart',co2Chart);
-    co2Chart.destroy()
-  }
+  if (co2Chart) co2Chart.destroy()
 
   const labels = impact.branches.map(b => b.branch)
 
@@ -830,7 +813,7 @@ function updateCO2Chart(impact) {
 
   function renderATMPanels(groups) {
     const panel = document.getElementById("atmPanel")
-    panel.innerHTML = "" // limpiar
+    panel.innerHTML = "" 
   
     groups.forEach(branch => {
       branch.atms.forEach(atm => {
@@ -846,20 +829,20 @@ function updateCO2Chart(impact) {
         atmDiv.innerHTML = `
             <strong>${branch.name} - ${atm.id}</strong> Estado: <span id="state-${branch.name}-${atm.id}">ON</span>
             <div style="display:flex;
-            flex-direction:row;
-            gap:12px;
-            align-items:center;
-            flex-wrap:wrap;">
-            <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
+                flex-direction:row;
+                gap:12px;
+                align-items:center;
+                flex-wrap:wrap;">
+                <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
                 <canvas 
-                id="kwh-${branch.name}-${atm.id}" 
-                width="220" 
-                height="120">
+                    id="kwh-${branch.name}-${atm.id}" 
+                    width="220" 
+                    height="120">
                 </canvas>
                 <canvas 
-                id="co2-${branch.name}-${atm.id}" 
-                width="220" 
-                height="120">
+                    id="co2-${branch.name}-${atm.id}" 
+                    width="220" 
+                    height="120">
                 </canvas>
             </div>
             `
@@ -1129,7 +1112,7 @@ function renderATMCo2(atmKey, atmImpactItem) {
       }
     })
   }
-  
+
   function renderAllATMCharts(atmImpact) {
 
     atmImpact.forEach(item => {
