@@ -126,6 +126,29 @@ button:focus-visible {
   display:none;
 }
 
+.panel-container {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap; /* permite apilar en pantallas pequeñas */
+}
+
+/* Panel izquierdo mínimo 300px, flexible hasta 40% */
+.panel-left {
+  flex: 1 1 300px; /* crece, se encoge, mínimo 300px */
+  max-width: 40%;
+}
+
+/* Panel derecho ocupa el resto */
+.panel-right {
+  flex: 1 1 0; /* crece, se encoge, mínimo 0 */
+}
+
+.simulated-hour-input {
+  max-width: 80px;       /* Ancho máximo del input */
+  border-color: #007bff;  /* Color de borde personalizado */
+  font-weight: 500;        /* Texto un poco más grueso */
+}
+
 /* MOBILE */
 @media (max-width:768px) {
   .menu-btn {
@@ -152,4 +175,10 @@ button:focus-visible {
   #content{
     padding-top:70px !important;
   }
+
+  .panel-left,
+    .panel-right {
+        flex: 1 1 100%; /* ambos ocupan 100% */
+        max-width: 100%;
+    }
 }

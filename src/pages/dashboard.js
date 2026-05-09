@@ -2,6 +2,7 @@ import { renderHome } from '../views/home.js'
 import { renderUsers } from '../views/users.js'
 import { renderSettings } from '../views/settings.js'
 import { renderEnergy } from '../views/energy.js'
+import { state } from '../state/state.js'
 
 export function renderDashboard(onLogout) {
     document.querySelector('#app').innerHTML = `
@@ -66,8 +67,8 @@ export function renderDashboard(onLogout) {
         menuBtn.classList.remove("hidden-btn")
     })
 
-
   const content = document.querySelector('#content')
+  
 
   function showHome() {
     document.getElementById("closeSidebar")?.click()
@@ -87,7 +88,41 @@ export function renderDashboard(onLogout) {
   function showEnergy() {
     document.getElementById("closeSidebar")?.click()
     content.innerHTML = renderEnergy()
+
+    startEnergyListeners()
   }
+
+  function startEnergyListeners(){
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+        // Listener del botón
+      playPauseBtn.addEventListener('click', () => {
+        const icon = playPauseBtn.querySelector('i');
+        if (!state.isRunning) {
+            icon.classList.remove('bi-play-fill');
+            icon.classList.add('bi-pause-fill');
+            state.isRunning = true;
+        } else {
+            icon.classList.remove('bi-pause-fill');
+            icon.classList.add('bi-play-fill');
+            state.isRunning = false;
+        }
+        console.log(state.isRunning);
+      });
+
+      // Listener del reset
+      resetBtn.addEventListener('click', () => {
+        clearInterval(intervalId);
+        seconds = 0;
+        updateDisplay();
+        const icon = playPauseBtn.querySelector('i');
+        icon.classList.remove('bi-pause-fill');
+        icon.classList.add('bi-play-fill');
+        state.isRunning = false;
+        console.log(state.isRunning);
+      });
+  }
+
 
   // navegación
   document.querySelector('#navEnergy').onclick = showEnergy

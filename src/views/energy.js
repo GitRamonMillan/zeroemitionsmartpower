@@ -1,5 +1,6 @@
 import { getEnergy } from '../services/energy.js'
 import { getYesterdayEnergy } from '../services/energy.js'
+import { state } from '../state/state.js'
 
 const factorEmisionxKWhAnual = 0.2421 //Factor de emisión del Sistema eléctrico Nacional 2023 (SEN) (ANUAL)
 const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
@@ -11,7 +12,7 @@ let selectedAtm = null
 let metaReduccionCO2 = 0.5
 
 let liveInterval = null
-let horaActual =  -1
+let horaActual =  0
 let milisegundosDuracionHoraSimulada = 5000
 const atmCharts = {}
 
@@ -28,6 +29,7 @@ const defaultChartOptions = {
 let yesterday = getYesterdayEnergy()
 let groups = getEnergy()
 
+console.log(state.isRunning);
 
 function computeShutdownMap(groups, yesterdayData) {
     return groups.flatMap(branch =>
@@ -66,399 +68,693 @@ function computeShutdownMap(groups, yesterdayData) {
     return lowConsumption && isIdleWindow && wasIdleYesterday
   }
 
-export function renderEnergy() {
-  const shutdownMap = computeShutdownMap(groups, yesterday)
-
-    const branchEnergy = groups.map(branch => {
-        let operational = 0
-        let idle = 0
-        let kwh = 0
-        let co2 = 0
-      
-        branch.atms.forEach(atm => {
-          atm.daily.forEach(hour => {
-            if (hour.state === "operational") {
-              operational += hour.kwh
-            } else {
-              idle += hour.kwh
-            }
-            kwh += hour.kwh
-            co2 += kwh * factorEmisionxKWhDiario
-          })
-        })
-      
-        return {
-          name: branch.name,
-          operational,
-          idle,
-          kwh,
-          co2
-        }
-    })
-
-    // aplanar todos los cajeros
-    const allAtms = groups.flatMap(g => g.atms)
-
-    const total = allAtms.reduce((sum, a) => sum + a.consumption, 0)
-    const avg = Math.round(total / allAtms.length)
-
-    const maxAtm = allAtms.reduce((a, b) =>
-        a.consumption > b.consumption ? a : b
-    )
-
-    const minAtm = allAtms.reduce((a, b) =>
-        a.consumption < b.consumption ? a : b
-    )
-
-
-  function renderBranchChart(data) {
-    const ctx = document.getElementById('branchChart')
+  function computeATMImpact(groups, shutdownMap) {
+    const atmImpact = []
   
+    groups.forEach(branch => {
+      branch.atms.forEach(atm => {
+        let currentKwh = 0
+        let optimizedKwh = 0
+  
+        let currentCO2 = 0
+        let optimizedCO2 = 0
+  
+        const decision = shutdownMap.find(
+          d => d.branch === branch.name && d.atmId === atm.id
+        )
+  
+        atm.daily.forEach(hour => {
+          currentKwh += hour.kwh
+          currentCO2 += hour.co2
+
+          if (
+            decision?.action === "OFF" &&
+            hour.state === "idle"
+          ) {
+            return
+          }
+  
+          optimizedKwh += hour.kwh
+          optimizedCO2 += hour.co2
+        })
+  
+        atmImpact.push({
+          branch: branch.name,
+          atmId: atm.id,
+  
+          currentKwh,
+          optimizedKwh,
+  
+          currentCO2,
+          optimizedCO2,
+  
+          savingsKwh: currentKwh - optimizedKwh,
+          savingsCO2: currentCO2 - optimizedCO2
+        })
+      })
+    })
+  
+    return atmImpact
+  }
+
+// export function renderEnergy() {
+//   const shutdownMap = computeShutdownMap(groups, yesterday)
+
+//     const branchEnergy = groups.map(branch => {
+//         let operational = 0
+//         let idle = 0
+//         let kwh = 0
+//         let co2 = 0
+      
+//         branch.atms.forEach(atm => {
+//           atm.daily.forEach(hour => {
+//             if (hour.state === "operational") {
+//               operational += hour.kwh
+//             } else {
+//               idle += hour.kwh
+//             }
+//             kwh += hour.kwh
+//             co2 += kwh * factorEmisionxKWhDiario
+//           })
+//         })
+      
+//         return {
+//           name: branch.name,
+//           operational,
+//           idle,
+//           kwh,
+//           co2
+//         }
+//     })
+
+//     // aplanar todos los cajeros
+//     const allAtms = groups.flatMap(g => g.atms)
+
+//     const total = allAtms.reduce((sum, a) => sum + a.consumption, 0)
+//     const avg = Math.round(total / allAtms.length)
+
+//     const maxAtm = allAtms.reduce((a, b) =>
+//         a.consumption > b.consumption ? a : b
+//     )
+
+//     const minAtm = allAtms.reduce((a, b) =>
+//         a.consumption < b.consumption ? a : b
+//     )
+
+        
+
+
+//     function renderBranchChart(data) {
+//         const ctx = document.getElementById('branchChart')
+    
+//         const branchData = data.map(branch => ({
+//         name: branch.name,
+//         total: branch.atms.reduce((sum, atm) => sum + atm.consumption, 0),
+//         co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0)
+//         }))
+
+//         if (branchChart) {
+//             branchChart.destroy()
+//         }
+
+//         branchChart = new window.Chart(ctx, {
+//         type: 'bar',
+//         data: {
+//             labels: branchData.map(b => b.name),
+//             datasets: [{
+//             label: 'Consumo total (KWh)',
+//             data: branchData.map(b => b.total),
+//             backgroundColor: '#4f46e5'
+//             }]
+//         },
+//         options: {
+//             defaultChartOptions,
+//             onClick: (evt, elements) => {
+//             if (!elements.length) return
+    
+//             const index = elements[0].index
+//             selectedBranch = data[index]
+    
+//             renderAtmChart(selectedBranch)
+//             }
+//         }
+//         })
+//     }
+
+//     function renderBranchChartCO2(data) {
+//         const ctx = document.getElementById('branchChartCO2')
+    
+//         const branchData = data.map(branch => ({
+//         name: branch.name,
+//         total: branch.atms.reduce((sum, atm) => sum + atm.consumption, 0),
+//         co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0),
+//         metaCO2: metaReduccionCO2
+//         }))
+    
+//         branchChartCO2 = new window.Chart(ctx, {
+//         type: 'bar',
+//         data: {
+//             labels: branchData.map(b => b.name),
+//             datasets: [{
+//             label: 'CO2 Generado',
+//             data: branchData.map(c => c.co2),
+//             backgroundColor: '#f59e0b'
+//             },
+//             {
+//                 label: 'Meta reducción CO2',
+//                 data: branchData.map(c => c.metaCO2),
+//                 backgroundColor: '#22c55e'
+//             }]
+//         },
+//         options: {
+//             defaultChartOptions,
+//             onClick: (evt, elements) => {
+//             if (!elements.length) return
+    
+//             const index = elements[0].index
+//             selectedBranch = data[index]
+    
+//             renderAtmChart(selectedBranch)
+//             }
+//         }
+//         })
+//     }
+
+//     function renderAtmChart(branch) {
+//         const ctx = document.getElementById('atmChart')
+    
+//         if (atmChart) atmChart.destroy()
+    
+//         document.getElementById('atmTitle').innerText = `ATMs - ${branch.name}`
+    
+//         const atm = branch
+    
+//         const daily = atm.daily
+    
+//         const labels = branch.atms.map(atm => atm.id)
+
+//         const idleData = branch.atms.map(atm =>
+//         atm.daily
+//             .filter(d => d.state === "idle")
+//             .reduce((s, d) => s + d.kwh, 0)
+//         )
+
+//         const operationalData = branch.atms.map(atm =>
+//         atm.daily
+//             .filter(d => d.state === "operational")
+//             .reduce((s, d) => s + d.kwh, 0)
+//         )
+
+//         const peakData = branch.atms.map(atm =>
+//         atm.daily
+//             .filter(d => d.state === "peak_operational")
+//             .reduce((s, d) => s + d.kwh, 0)
+//         )
+    
+//         atmChart = new window.Chart(ctx, {
+//             type: "bar",
+//             data: {
+//             labels,
+//             datasets: [
+//                 {
+//                 label: "Idle",
+//                 data: idleData,
+//                 backgroundColor: "#f59e0b"
+//                 },
+//                 {
+//                 label: "Operativo",
+//                 data: operationalData,
+//                 backgroundColor: "#22c55e"
+//                 },
+//                 {
+//                 label: "Peak",
+//                 data: peakData,
+//                 backgroundColor: "#f00000"
+//                 }
+//             ]
+//             },
+//             options: {
+//                 defaultChartOptions,
+//                 onClick: (evt, elements) => {
+//                 if (!elements.length) return
+        
+//                 const index = elements[0].index
+//                 selectedAtm = branch.atms[index]
+        
+//                 renderHourChart(selectedAtm)},
+//             responsive: true,
+//             plugins: {
+//                 legend: {
+//                 position: "top"
+//                 }
+//             },
+//             scales: {
+//                 x: {
+//                 stacked: true
+//                 },
+//                 y: {
+//                 stacked: true,
+//                 title: {
+//                     display: true,
+//                     text: "kWh total diario"
+//                 }
+//                 }
+//             }
+//             }
+//         })
+//     }
+
+
+//     function renderHourChart(atm) {
+//         const ctx = document.getElementById('hourChart')
+    
+//         if (hourChart) hourChart.destroy()
+    
+//         const labels = atm.daily.map(h => h.hour)
+    
+//         const operational = atm.daily.map(h =>
+//         h.state === "operational" ? h.kwh : 0
+//         )
+    
+//         const idle = atm.daily.map(h =>
+//         h.state === "idle" ? h.kwh : 0
+//         )
+
+//         const peak = atm.daily.map(h =>
+//             h.state === "peak_operational" ? h.kwh : 0
+//         )
+
+//         document.getElementById('hourTitle').innerText = `Detalle - ${atm.id}`
+    
+//         hourChart = new window.Chart(ctx, {
+//         type: 'bar',
+//         data: {
+//             labels,
+//             datasets: [
+//             {
+//                 label: 'Peak',
+//                 data: peak,
+//                 backgroundColor: '#F00000'
+//             },
+//             {
+//                 label: 'Operativo',
+//                 data: operational,
+//                 backgroundColor: '#22c55e'
+//             },
+//             {
+//                 label: 'Idle',
+//                 data: idle,
+//                 backgroundColor: '#f59e0b'
+//             }
+//             ]
+//         },
+//         options: {
+//             defaultChartOptions,
+//             responsive: true,
+//             scales: {
+//             x: {
+//                 stacked: true
+//             },
+//             y: {
+//                 stacked: true,
+//                 title: {
+//                 display: true,
+//                 text: "kWh"
+//                 }
+//             }
+//             }
+//         }
+//         })
+//     }
+
+ 
+  
+
+
+//     setTimeout(() => {
+//         console.log('inicio...');
+//         renderBranchChart(groups)
+//         renderBranchChartCO2(groups)
+//         renderShutdownPanel(shutdownMap)
+//         renderATMPanels(groups)
+
+//         const impact = computeCO2Impact(groups, shutdownMap)
+//         renderCO2Impact(impact)
+
+//         startSimulationEngine(({ groups, decisions, impact }) => {
+
+//             renderShutdownPanel(decisions)
+//             renderCO2Impact(impact)
+
+//             renderCO2Chart(impact) 
+//             renderBranchChart(groups)
+
+//             //..impacto por cajero
+//             const atmImpact = computeATMImpact(groups, shutdownMap)
+//             renderAllATMCharts(atmImpact)
+
+//         })
+
+//     }, 0)
+
+//   return `
+//     <h2 class="mb-4">⚡ Dashboard Energía</h2>
+//     <div class="card p-3 mb-3" style="flex: 1; min-width: 150px; text-align:center;">
+//         <h5>Hora Simulada</h5>
+//         <div id="horaActualDisplay" style="font-size:24px; font-weight:bold;">00:00</div>
+
+//         <!-- Botones de control con iconos -->
+//         <div class="mt-3 d-flex justify-content-center gap-2">
+//             <button id="playPauseBtn" class="btn btn-primary">
+//                 <i class="bi bi-pause-fill"></i>
+//             </button>
+//             <button id="resetBtn" class="btn btn-secondary">
+//                 <i class="bi bi-arrow-counterclockwise"></i>
+//             </button>
+//         </div>
+//     </div>
+//     <!-- KPIs -->
+//     <div class="row mb-4">
+
+//     <div id="autopilotPanel" style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+//     <div class="mb-3">
+//         <label for="autopilotSwitch">Autopilot</label>
+//         <input type="checkbox" id="autopilotSwitch">
+//         </div>
+//         <div class="row align-items-center mb-3">
+//             <div class="col-auto">
+//                 <label for="simulatedSeconds" class="col-form-label">Duración de la Hora (segundos):</label>
+//             </div>
+//             <div class="col-auto">
+//                 <input type="number" 
+//                     class="form-control simulated-hour-input" 
+//                     id="simulatedSeconds" 
+//                     placeholder="Enter seconds" 
+//                     min="1"
+//                     value="5">
+//             </div>
+//         </div>
+//     </div>
+//     <!--  <div class="col-md-3">
+//         <div class="card p-3 shadow-sm border-start border-4 border-primary">
+//           <h6>Consumo total</h6>
+//           <h3>${total} kWh</h3>
+//         </div>
+//       </div>
+
+//       <div class="col-md-3">
+//         <div class="card p-3 shadow-sm border-start border-4 border-success">
+//           <h6>Promedio ATM</h6>
+//           <h3>${avg} kWh</h3>
+//         </div>
+//       </div>
+
+//       <div class="col-md-3">
+//         <div class="card p-3 shadow-sm border-start border-4 border-danger">
+//           <h6>Mayor consumo</h6>
+//           <h5>${maxAtm.id}</h5>
+//           <small>${maxAtm.consumption} kWh</small>
+//         </div>
+//       </div>
+
+//       <div class="col-md-3">
+//         <div class="card p-3 shadow-sm border-start border-4 border-warning">
+//           <h6>Más eficiente</h6>
+//           <h5>${minAtm.id}</h5>
+//           <small>${minAtm.consumption} kWh</small>
+//         </div>
+//       </div>-->
+
+//     </div>
+
+//     <div class="panel-container">
+//         <div class="card panel-left p-3 mb-3">
+//             <h5>Estado</h5>
+//             <div id="shutdownPanel"></div>
+//         </div>
+//         <div class="card panel-right p-3 mb-3">
+//             <h5>Ayer vs Hoy</h5>
+//             <div id="atmPanel"></div>
+//         </div>
+//     </div>
+
+//     <!-- CHART -->
+//     <!--<div class="card p-3">
+//       <canvas id="energyChart"></canvas>
+//     </div>-->
+
+//     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+    
+//         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+//             <h5>Sucursales</h5>
+//             <canvas id="branchChart"></canvas>
+//         </div>
+
+//         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+//             <h5>Sucursales</h5>
+//             <canvas id="branchChartCO2"></canvas>
+//         </div>
+
+//     </div>
+
+//     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+//         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+//             <h5>ATMs</h5>
+//             <canvas id="atmChart"></canvas>
+//         </div>
+
+//         <div class="card p-3" style="flex: 1; min-width: 300px;">
+//             <h5>Detalle horario</h5>
+//             <h5 id="atmTitle">ATMs</h5>
+//             <h5 id="hourTitle">Detalle horario</h5>
+//             <canvas id="hourChart"></canvas>
+//         </div>
+//     </div>
+//   `
+// }
+
+export function renderEnergy() {
+  const shutdownMap = computeShutdownMap(groups, yesterday);
+
+  // aplanar todos los cajeros
+  const allAtms = groups.flatMap(g => g.atms);
+
+  const total = allAtms.reduce((sum, a) => sum + a.consumption, 0);
+  const avg = Math.round(total / allAtms.length);
+  const maxAtm = allAtms.reduce((a, b) => (a.consumption > b.consumption ? a : b));
+  const minAtm = allAtms.reduce((a, b) => (a.consumption < b.consumption ? a : b));
+
+  // ================= Charts =================
+  function renderBranchChart(data) {
+    const ctx = document.getElementById('branchChart');
     const branchData = data.map(branch => ({
       name: branch.name,
-      total: branch.atms.reduce((sum, atm) => sum + atm.consumption, 0),
-      co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0)
-    }))
+      total: branch.atms.reduce((sum, atm) => sum + atm.consumption, 0)
+    }));
 
-    if (branchChart) {
-        branchChart.destroy()
-      }
+    if (branchChart) branchChart.destroy();
 
     branchChart = new window.Chart(ctx, {
       type: 'bar',
       data: {
         labels: branchData.map(b => b.name),
-        datasets: [{
-          label: 'Consumo total (KWh)',
-          data: branchData.map(b => b.total),
-          backgroundColor: '#4f46e5'
-        }]
+        datasets: [{ label: 'Consumo total (KWh)', data: branchData.map(b => b.total), backgroundColor: '#4f46e5' }]
       },
-      options: {
-        defaultChartOptions,
-        onClick: (evt, elements) => {
-          if (!elements.length) return
-  
-          const index = elements[0].index
-          selectedBranch = data[index]
-  
-          renderAtmChart(selectedBranch)
-        }
-      }
-    })
+      options: { defaultChartOptions }
+    });
   }
 
   function renderBranchChartCO2(data) {
-    const ctx = document.getElementById('branchChartCO2')
-  
+    const ctx = document.getElementById('branchChartCO2');
     const branchData = data.map(branch => ({
       name: branch.name,
-      total: branch.atms.reduce((sum, atm) => sum + atm.consumption, 0),
       co2: branch.atms.reduce((sum, atm) => sum + atm.co2, 0),
       metaCO2: metaReduccionCO2
-    }))
-  
+    }));
+
+    if (branchChartCO2) branchChartCO2.destroy();
+
     branchChartCO2 = new window.Chart(ctx, {
       type: 'bar',
       data: {
         labels: branchData.map(b => b.name),
-        datasets: [{
-          label: 'CO2 Generado',
-          data: branchData.map(c => c.co2),
-          backgroundColor: '#f59e0b'
-        },
-        {
-            label: 'Meta reducción CO2',
-            data: branchData.map(c => c.metaCO2),
-            backgroundColor: '#22c55e'
-          }]
+        datasets: [
+          { label: 'CO2 Generado', data: branchData.map(c => c.co2), backgroundColor: '#f59e0b' },
+          { label: 'Meta reducción CO2', data: branchData.map(c => c.metaCO2), backgroundColor: '#22c55e' }
+        ]
       },
-      options: {
-        defaultChartOptions,
-        onClick: (evt, elements) => {
-          if (!elements.length) return
-  
-          const index = elements[0].index
-          selectedBranch = data[index]
-  
-          renderAtmChart(selectedBranch)
-        }
-      }
-    })
+      options: { defaultChartOptions }
+    });
   }
 
   function renderAtmChart(branch) {
-    const ctx = document.getElementById('atmChart')
-  
-    if (atmChart) atmChart.destroy()
-  
-    document.getElementById('atmTitle').innerText = `ATMs - ${branch.name}`
-  
-    const atm = branch
-  
-    const daily = atm.daily
-  
-    const labels = branch.atms.map(atm => atm.id)
+    const ctx = document.getElementById('atmChart');
+    if (atmChart) atmChart.destroy();
+
+    document.getElementById('atmTitle').innerText = `ATMs - ${branch.name}`;
+
+    const labels = branch.atms.map(atm => atm.id);
 
     const idleData = branch.atms.map(atm =>
-    atm.daily
-        .filter(d => d.state === "idle")
-        .reduce((s, d) => s + d.kwh, 0)
-    )
-
+      atm.daily.filter(d => d.state === "idle").reduce((s, d) => s + d.kwh, 0)
+    );
     const operationalData = branch.atms.map(atm =>
-    atm.daily
-        .filter(d => d.state === "operational")
-        .reduce((s, d) => s + d.kwh, 0)
-    )
-
+      atm.daily.filter(d => d.state === "operational").reduce((s, d) => s + d.kwh, 0)
+    );
     const peakData = branch.atms.map(atm =>
-    atm.daily
-        .filter(d => d.state === "peak_operational")
-        .reduce((s, d) => s + d.kwh, 0)
-    )
-  
-      atmChart = new window.Chart(ctx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Idle",
-              data: idleData,
-              backgroundColor: "#f59e0b"
-            },
-            {
-              label: "Operativo",
-              data: operationalData,
-              backgroundColor: "#22c55e"
-            },
-            {
-              label: "Peak",
-              data: peakData,
-              backgroundColor: "#f00000"
-            }
-          ]
-        },
-        options: {
-            defaultChartOptions,
-            onClick: (evt, elements) => {
-            if (!elements.length) return
-    
-            const index = elements[0].index
-            selectedAtm = branch.atms[index]
-    
-            renderHourChart(selectedAtm)},
-          responsive: true,
-          plugins: {
-            legend: {
-              position: "top"
-            }
-          },
-          scales: {
-            x: {
-              stacked: true
-            },
-            y: {
-              stacked: true,
-              title: {
-                display: true,
-                text: "kWh total diario"
-              }
-            }
-          }
-        }
-      })
-  }
+      atm.daily.filter(d => d.state === "peak_operational").reduce((s, d) => s + d.kwh, 0)
+    );
 
-
-  function renderHourChart(atm) {
-    const ctx = document.getElementById('hourChart')
-  
-    if (hourChart) hourChart.destroy()
-  
-    const labels = atm.daily.map(h => h.hour)
-  
-    const operational = atm.daily.map(h =>
-      h.state === "operational" ? h.kwh : 0
-    )
-  
-    const idle = atm.daily.map(h =>
-      h.state === "idle" ? h.kwh : 0
-    )
-
-    const peak = atm.daily.map(h =>
-        h.state === "peak_operational" ? h.kwh : 0
-      )
-
-    document.getElementById('hourTitle').innerText = `Detalle - ${atm.id}`
-  
-    hourChart = new window.Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-        {
-            label: 'Peak',
-            data: peak,
-            backgroundColor: '#F00000'
-        },
-        {
-            label: 'Operativo',
-            data: operational,
-            backgroundColor: '#22c55e'
-          },
-          {
-            label: 'Idle',
-            data: idle,
-            backgroundColor: '#f59e0b'
-          }
-        ]
-      },
+    atmChart = new window.Chart(ctx, {
+      type: "bar",
+      data: { labels, datasets: [
+        { label: "Idle", data: idleData, backgroundColor: "#f59e0b" },
+        { label: "Operativo", data: operationalData, backgroundColor: "#22c55e" },
+        { label: "Peak", data: peakData, backgroundColor: "#f00000" }
+      ] },
       options: {
         defaultChartOptions,
         responsive: true,
-        scales: {
-          x: {
-            stacked: true
-          },
-          y: {
-            stacked: true,
-            title: {
-              display: true,
-              text: "kWh"
-            }
-          }
-        }
+        plugins: { legend: { position: "top" } },
+        scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: "kWh total diario" } } }
       }
-    })
+    });
   }
 
- 
+  function renderAllATMsChart(groups) {
+    const ctx = document.getElementById('atmChart');
+    if (atmChart) atmChart.destroy();
 
- 
+    const labels = groups.flatMap(branch => branch.atms.map(atm => atm.id));
+    const idleData = groups.flatMap(branch => branch.atms.map(atm => atm.daily.reduce((s, h) => s + (h.state === 'idle' ? h.kwh : 0), 0)));
+    const operationalData = groups.flatMap(branch => branch.atms.map(atm => atm.daily.reduce((s, h) => s + (h.state === 'operational' ? h.kwh : 0), 0)));
+    const peakData = groups.flatMap(branch => branch.atms.map(atm => atm.daily.reduce((s, h) => s + (h.state === 'peak_operational' ? h.kwh : 0), 0)));
 
-  
+    document.getElementById('atmTitle').innerText = `Todos los ATMs`;
 
-  
+    atmChart = new window.Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label: 'Idle', data: idleData, backgroundColor: '#f59e0b' },
+        { label: 'Operativo', data: operationalData, backgroundColor: '#22c55e' },
+        { label: 'Peak', data: peakData, backgroundColor: '#f00000' }
+      ] },
+      options: {
+        defaultChartOptions,
+        responsive: true,
+        plugins: { legend: { position: "top" } },
+        scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: "kWh total diario" } } }
+      }
+    });
+  }
 
-  
+  // ================= SetTimeout para inicializar charts =================
+  setTimeout(() => {
+    renderBranchChart(groups);
+    renderBranchChartCO2(groups);
 
-setTimeout(() => {
+    // Render inicial con todos
+    renderShutdownPanel(shutdownMap);
+    renderATMPanels(groups);
 
+    const impact = computeCO2Impact(groups, shutdownMap);
+    renderCO2Impact(impact);
 
-    renderBranchChart(groups)
-    renderBranchChartCO2(groups)
-    renderShutdownPanel(shutdownMap)
+    startSimulationEngine(({ groups, decisions, impact }) => {
+      renderShutdownPanel(decisions);
+      renderCO2Impact(impact);
+      renderCO2Chart(impact);
+      renderBranchChart(groups);
 
+      const atmImpact = computeATMImpact(groups, shutdownMap);
+      renderAllATMCharts(atmImpact);
+    });
 
-renderATMPanels(groups)
-    //startLiveEnergyEngine() 
+    // ===== Combobox para filtrar sucursal =====
+    const branchFilter = document.getElementById('branchFilter');
+    branchFilter.addEventListener('change', e => {
+        const selected = e.target.value;
 
-      const impact = computeCO2Impact(groups, shutdownMap)
-        renderCO2Impact(impact)
+        if (selected === 'all') {
+            // Mostrar todos
+            renderShutdownPanel(shutdownMap);
+            renderATMPanels(groups);
+        } else {
+            const branch = groups.find(b => b.name === selected);
+            const filteredShutdownMap = computeShutdownMap([branch], yesterday);
 
-        startSimulationEngine(({ groups, decisions, impact }) => {
+            renderShutdownPanel(filteredShutdownMap);
+            renderATMPanels([branch]);
+        }
+    });
+}, 0);
 
-            renderShutdownPanel(decisions)
-            renderCO2Impact(impact)
-
-            renderCO2Chart(impact) 
-            renderBranchChart(groups)
-
-            //..impacto por cajero
-            const atmImpact = computeATMImpact(groups, shutdownMap)
-            renderAllATMCharts(atmImpact)
-
-        })
-      
-  }, 0)
-
+  // ================= HTML del Dashboard =================
   return `
     <h2 class="mb-4">⚡ Dashboard Energía</h2>
     <div class="card p-3 mb-3" style="flex: 1; min-width: 150px; text-align:center;">
-    <h5>Hora Simulada</h5>
-    <div id="horaActualDisplay" style="font-size:24px; font-weight:bold;">00:00</div>
-</div>
-    <!-- KPIs -->
-    <div class="row mb-4">
+        <h5>Hora Simulada</h5>
+        <div id="horaActualDisplay" style="font-size:24px; font-weight:bold;">00:00</div>
 
-    <div id="autopilotPanel" style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
-        <label for="autopilotSwitch">Autopilot</label>
-        <input type="checkbox" id="autopilotSwitch">
-    </div>
-    <!--  <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-start border-4 border-primary">
-          <h6>Consumo total</h6>
-          <h3>${total} kWh</h3>
+        <div class="mt-3 d-flex justify-content-center gap-2">
+            <button id="playPauseBtn" class="btn btn-primary">
+                <i class="bi bi-pause-fill"></i>
+            </button>
+            <button id="resetBtn" class="btn btn-secondary">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
         </div>
-      </div>
-
-      <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-start border-4 border-success">
-          <h6>Promedio ATM</h6>
-          <h3>${avg} kWh</h3>
-        </div>
-      </div>
-
-      <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-start border-4 border-danger">
-          <h6>Mayor consumo</h6>
-          <h5>${maxAtm.id}</h5>
-          <small>${maxAtm.consumption} kWh</small>
-        </div>
-      </div>
-
-      <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-start border-4 border-warning">
-          <h6>Más eficiente</h6>
-          <h5>${minAtm.id}</h5>
-          <small>${minAtm.consumption} kWh</small>
-        </div>
-      </div>-->
-
     </div>
 
-    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-        <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+    <div class="row">
+    <!--<div id="autopilotPanel" style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+            <div class="mb-3">
+                <label for="autopilotSwitch">Autopilot</label>
+                <input type="checkbox" id="autopilotSwitch">
+            </div>
+            <div class="row align-items-center mb-3">
+                <div class="col-auto">
+                    <label for="simulatedSeconds" class="col-form-label">Duración de la Hora (segundos):</label>
+                </div>
+                <div class="col-auto">
+                    <input type="number" id="simulatedSeconds" class="form-control simulated-hour-input" placeholder="Enter seconds" min="1" value="5">
+                </div>
+            </div>
+            
+            <div class="row align-items-center mb-3">
+                <div class="col-auto">
+                    <label for="branchFilter">Sucursal:</label>
+                </div>
+                <div class="col-auto">
+                    <select id="branchFilter" class="form-select">
+                        <option value="all">Todas</option>
+                        ${groups.map(branch => `<option value="${branch.name}">${branch.name}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+        </div>-->
+    </div>
+
+    <div class="panel-container">
+        <div class="card panel-left p-3 mb-3">
             <h5>Estado</h5>
             <div id="shutdownPanel"></div>
         </div>
-        <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
+        <div class="card panel-right p-3 mb-3">
             <h5>Ayer vs Hoy</h5>
             <div id="atmPanel"></div>
         </div>
-        <!--<div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
-            <h5>Impacto CO₂ en Tiempo Real por ATM</h5>
-            <canvas id="atmImpactChart"></canvas>
-        </div>-->
-        <!--<div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
-            <h5>Impacto CO₂ en Tiempo Real</h5>
-            <div id="co2ImpactPanel"></div>
-        </div>-->
-        <!--<div class="card p-3 mb-3">
-            <h5>CO₂ por Sucursal (Antes vs Optimizado)</h5>
-            <canvas id="co2BranchChart"></canvas>
-        </div>-->
     </div>
 
-    <!-- CHART -->
-    <!--<div class="card p-3">
-      <canvas id="energyChart"></canvas>
-    </div>-->
-
     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-    
         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
             <h5>Sucursales</h5>
             <canvas id="branchChart"></canvas>
         </div>
-
         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
             <h5>Sucursales</h5>
             <canvas id="branchChartCO2"></canvas>
         </div>
-
     </div>
 
     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -474,7 +770,7 @@ renderATMPanels(groups)
             <canvas id="hourChart"></canvas>
         </div>
     </div>
-  `
+  `;
 }
 
 function renderShutdownPanel(data) {
@@ -496,7 +792,7 @@ function renderShutdownPanel(data) {
             border-radius:6px;
             font-size:12px;
           ">
-            ${item.action}
+            ${item.action === "OFF" ? "Apagar" : "Encender"}
           </span>
         </div>
   
@@ -519,6 +815,7 @@ function renderShutdownPanel(data) {
       }
   
     liveInterval = setInterval(() => {
+        if(!state.isRunning) return;
         horaActual+=1
         if (horaActual > 24) {
             groups = getEnergy()
@@ -880,6 +1177,20 @@ function updateCO2Chart(impact) {
         options: {
           responsive: false,
           scales: { y: { beginAtZero: true } }
+        },
+        plugins: {
+            title: {
+                display: true,
+                text: 'Consumo kWh',
+                font: {
+                    size: 12,
+                    weight: 'bold'
+                },
+                padding: {
+                    top: 0,
+                    bottom: 5
+                }
+            }
         }
       })
     }
@@ -894,104 +1205,13 @@ function updateCO2Chart(impact) {
     display.textContent = `${hh}:00`
   }
 
-  function computeATMImpact(groups, shutdownMap) {
-    const atmImpact = []
   
-    groups.forEach(branch => {
-  
-      branch.atms.forEach(atm => {
-  
-        let currentKwh = 0
-        let optimizedKwh = 0
-  
-        let currentCO2 = 0
-        let optimizedCO2 = 0
-  
-        const decision = shutdownMap.find(
-          d => d.branch === branch.name && d.atmId === atm.id
-        )
-  
-        atm.daily.forEach(hour => {
-  
-          currentKwh += hour.kwh
-          currentCO2 += hour.co2
-  
-          // simulación optimizada
-          if (
-            decision?.action === "OFF" &&
-            hour.state === "idle"
-          ) {
-            return
-          }
-  
-          optimizedKwh += hour.kwh
-          optimizedCO2 += hour.co2
-        })
-  
-        atmImpact.push({
-          branch: branch.name,
-          atmId: atm.id,
-  
-          currentKwh,
-          optimizedKwh,
-  
-          currentCO2,
-          optimizedCO2,
-  
-          savingsKwh: currentKwh - optimizedKwh,
-          savingsCO2: currentCO2 - optimizedCO2
-        })
-      })
-    })
-  
-    return atmImpact
-  }
-
-  //---
-//   function renderATMkWh(atmKey, atmImpactItem) {
-//     const ctx = document.getElementById(`kwh-${atmKey}`)
-  
-//     if (!ctx) return
-  
-//     if (atmKwhCharts[atmKey]) {
-//       atmKwhCharts[atmKey].data.datasets[0].data = [
-//         atmImpactItem.currentKwh,
-//         atmImpactItem.optimizedKwh
-//       ]
-//       atmKwhCharts[atmKey].update()
-//       return
-//     }
-  
-//     atmKwhCharts[atmKey] = new Chart(ctx, {
-//       type: "bar",
-//       data: {
-//         labels: ["Actual", "Optimizado"],
-//         datasets: [{
-//           label: "kWh",
-//           data: [
-//             atmImpactItem.currentKwh,
-//             atmImpactItem.optimizedKwh
-//           ],
-//           backgroundColor: ["#f59e0b", "#22c55e"]
-//         }]
-//       },
-//       options: {
-//         responsive: false,
-//         plugins: { legend: { display: false } },
-//         scales: {
-//           y: { beginAtZero: true }
-//         }
-//       }
-//     })
-//   }
 
 function renderATMkWh(atmKey, atmImpactItem) {
-
     const ctx = document.getElementById(`kwh-${atmKey}`)
   
     if (!ctx) return
   
-    // SI YA EXISTE → UPDATE
     if (atmKwhCharts[atmKey]) {
   
       atmKwhCharts[atmKey].data.datasets[0].data = [
@@ -1004,7 +1224,6 @@ function renderATMkWh(atmKey, atmImpactItem) {
       return
     }
   
-    // SOLO SE CREA UNA VEZ
     atmKwhCharts[atmKey] = new Chart(ctx, {
       type: "bar",
   
@@ -1027,46 +1246,27 @@ function renderATMkWh(atmKey, atmImpactItem) {
         responsive: false,
         animation: {
           duration: 500
+        },
+        plugins: {
+            legend: {
+            display: false
+        },
+            title: {
+                display: true,
+                text: 'Consumo kWh',
+                font: {
+                    size: 12,
+                    weight: 'bold'
+                },
+                padding: {
+                    top: 0,
+                    bottom: 5
+                }
+            }
         }
       }
     })
   }
-
-//   function renderATMCo2(atmKey, atmImpactItem) {
-//     const ctx = document.getElementById(`co2-${atmKey}`)
-//     if (!ctx) return
-  
-//     if (atmCo2Charts[atmKey]) {
-//       atmCo2Charts[atmKey].data.datasets[0].data = [
-//         atmImpactItem.currentCO2,
-//         atmImpactItem.optimizedCO2
-//       ]
-//       atmCo2Charts[atmKey].update()
-//       return
-//     }
-  
-//     atmCo2Charts[atmKey] = new Chart(ctx, {
-//       type: "bar",
-//       data: {
-//         labels: ["Actual", "Optimizado"],
-//         datasets: [{
-//           label: "CO₂",
-//           data: [
-//             atmImpactItem.currentCO2,
-//             atmImpactItem.optimizedCO2
-//           ],
-//           backgroundColor: ["#ef4444", "#3b82f6"]
-//         }]
-//       },
-//       options: {
-//         responsive: false,
-//         plugins: { legend: { display: false } },
-//         scales: {
-//           y: { beginAtZero: true }
-//         }
-//       }
-//     })
-//   }
 
 function renderATMCo2(atmKey, atmImpactItem) {
 
@@ -1108,6 +1308,23 @@ function renderATMCo2(atmKey, atmImpactItem) {
         responsive: false,
         animation: {
           duration: 500
+        },
+        plugins: {
+            legend: {
+                display: false
+            },
+            title: {
+                display: true,
+                text: 'CO₂ generado',
+                font: {
+                    size: 12,
+                    weight: 'bold'
+                },
+                padding: {
+                    top: 0,
+                    bottom: 5
+                }
+            }
         }
       }
     })

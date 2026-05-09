@@ -88,15 +88,15 @@ export function getEnergy() {
       
           if (isIdle) {
             state = "idle"
-            kwh = Math.floor(Math.random() * 2) + 1 // 1–2 kWh
+            kwh = 2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
           } 
           else if (isPeak) {
             state = "peak_operational"
-            kwh = Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
+            kwh = 9//Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
           } 
           else if (isOperating) {
             state = "operational"
-            kwh = Math.floor(Math.random() * 4) + 3 // 3–6 kWh
+            kwh = 6//Math.floor(Math.random() * 4) + 3 // 3–6 kWh
           }
       
           const co2 = kwh * factorEmisionxKWhDiario
