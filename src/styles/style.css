@@ -149,6 +149,43 @@ button:focus-visible {
   font-weight: 500;        /* Texto un poco más grueso */
 }
 
+.indicator {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: gray; /* estado inicial */
+  transition: background-color 0.3s;
+  display:grid;
+}
+.indicator.idle {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: orange; /* estado inicial */
+  transition: background-color 0.3s;
+  display:grid;
+}
+.indicator.operational {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: green; /* estado inicial */
+  transition: background-color 0.3s;
+  display:grid;
+}
+.indicator.peak_operational {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: red; /* estado inicial */
+  transition: background-color 0.3s;
+  display:grid;
+}
+
+.hidden-div {
+  display:none !important;
+}
+
 /* MOBILE */
 @media (max-width:768px) {
   .menu-btn {
