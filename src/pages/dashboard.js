@@ -151,6 +151,8 @@ export function renderDashboard(onLogout) {
 
 
   document.addEventListener("click", e => {
+    console.log(e.target);
+    if(e.target.id.indexOf('switchAtm') > -1 || e.target.id.indexOf('switchPower') > -1) return
     const target = e.target.closest(".atmShutdownPanel");
     console.log(target);
     if (!target) return;
@@ -174,6 +176,7 @@ export function renderDashboard(onLogout) {
     const chartsDiv = document.getElementById(`atmActivityCharts-${target.dataset.atmbranch}-${target.dataset.atmid}`);
     chartsDiv.classList.toggle("hidden-div");
 });
+
 
 
 // const atmShutdownPanel = document.getElementById("atmShutdownPanel")

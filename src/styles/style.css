@@ -186,6 +186,21 @@ button:focus-visible {
   display:none !important;
 }
 
+.atmShutdownPanel {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.atmShutdownPanel:hover {
+  transform: translateY(-5px); /* Eleva ligeramente el elemento */
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15); /* Sombra más marcada */
+  cursor: pointer;
+}
+
+.smallSwitchLabel {
+  font-size: 0.75rem; /* tamaño pequeño */
+  font-weight: 500;   /* opcional, más ligero */
+}
+
 /* MOBILE */
 @media (max-width:768px) {
   .menu-btn {

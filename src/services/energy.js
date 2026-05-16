@@ -5,15 +5,14 @@ const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
 //fuente : https://huellachile.mma.gob.cl/wp-content/uploads/2024/11/HuellaChile-DCC-Factores-de-emision-nivel-basico_v3.pdf
 
 const probabilidadHoraPeak =  0.25
-const cajerosPorSucursal = 3
+const cajerosPorSucursal = 2
+const groups = ["Agustinas", "Huérfanos"]//["Agustinas", "Huérfanos", "Moneda"]
 
 export function updateEnergy(values) {
   return api.updateEnergy(values)
 }
 
 export function getEnergy() {
-  const groups = ["Agustinas", "Huérfanos", "Moneda"]
-
   function generateSchedule() {
     const start = Math.floor(Math.random() * 4) + 7
     const duration = Math.floor(Math.random() * 6) + 10
@@ -39,7 +38,8 @@ export function getEnergy() {
         peakKwh: 0,
         consumption: 0,
         co2: 0,
-        powerState: 1
+        powerState: 0,
+        automaticMode: 1
       }
     })
   }))
@@ -47,7 +47,7 @@ export function getEnergy() {
 
 
   export function getYesterdayEnergy() {
-    const groups = ["Agustinas", "Huérfanos", "Moneda"]
+    
   
     function generateSchedule() {
         const start = Math.floor(Math.random() * 4) + 7 // 7–10
