@@ -6,7 +6,7 @@ const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
 
 const probabilidadHoraPeak =  0.25
 const cajerosPorSucursal = 2
-const groups = ["Agustinas", "Huérfanos"]//["Agustinas", "Huérfanos", "Moneda"]
+const groups = ["Agustinas"]//["Agustinas", "Huérfanos", "Moneda"]
 
 export function updateEnergy(values) {
   return api.updateEnergy(values)
@@ -89,15 +89,15 @@ export function getEnergy() {
       
           if (isIdle) {
             state = "idle"
-            kwh = 2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
+            kwh = Math.floor(Math.random() * (50 - 10 + 1)) + 10;//2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
           } 
           else if (isPeak) {
             state = "peak_operational"
-            kwh = 9//Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
+            kwh = Math.floor(Math.random() * (800 - 700 + 1)) + 700;//9//Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
           } 
           else if (isOperating) {
             state = "operational"
-            kwh = 6//Math.floor(Math.random() * 4) + 3 // 3–6 kWh
+            kwh = Math.floor(Math.random() * (500 - 300 + 1)) + 300;//6//Math.floor(Math.random() * 4) + 3 // 3–6 kWh
           }
       
           const co2 = kwh * factorEmisionxKWhDiario

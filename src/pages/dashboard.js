@@ -147,6 +147,8 @@ export function renderDashboard(onLogout) {
         state.isRunning = false;
         console.log(state.isRunning);
       });
+
+
   }
 
 
@@ -177,6 +179,20 @@ export function renderDashboard(onLogout) {
     chartsDiv.classList.toggle("hidden-div");
 });
 
+document.addEventListener("change", e => {
+  if(e.target.id.indexOf('switchPower') == -1) return
+  console.log('detecta change switchPower')
+  let switchPower = document.getElementById(e.target.id)
+  console.log(switchPower)
+  
+  let switchPowerLabel = document.getElementById(e.target.id.replace('switchPower','switchPowerLabel'))
+  console.log(switchPowerLabel)
+  if (switchPower.checked) {
+        switchPowerLabel.textContent = "Encendido";
+    } else {
+        switchPowerLabel.textContent = "Apagado"; 
+    }
+});
 
 
 // const atmShutdownPanel = document.getElementById("atmShutdownPanel")

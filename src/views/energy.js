@@ -33,8 +33,6 @@ const defaultChartOptions = {
 export let yesterday = getYesterdayEnergy()
 export let groups = getEnergy()
 
-console.log(state.isRunning);
-
 function computeShutdownMap(groups, yesterdayData) {
     return groups.flatMap(branch =>
       branch.atms.map(atm => {
@@ -42,7 +40,6 @@ function computeShutdownMap(groups, yesterdayData) {
         const yesterdayBranch = yesterdayData.find(b => b.name === branch.name)
         const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
   
-        console.log(atm);
         const shouldOff = yesterdayATM
           ? shouldShutdownATMWithYesterday(atm, yesterdayATM)
           : false // si no hay data de ayer, default ON
@@ -51,7 +48,7 @@ function computeShutdownMap(groups, yesterdayData) {
           branch: branch.name,
           atmId: atm.id,
           action: shouldOff ? "OFF" : "ON",
-          confidence: 1,// Math.random() * 0.3 + (shouldOff ? 0.7 : 0.2),
+          confidence: Math.random() * 0.3 + (shouldOff ? 0.7 : 0.2),
           explanation: generateLLMExplanation(atm),
           currentActivityState: atm.daily.at(-1)?.state,
           currentPowerState: atm.powerState,
@@ -66,7 +63,7 @@ function computeShutdownMap(groups, yesterdayData) {
     const currentHour = todayATM.daily.slice(-1) // últimas 3 horas
 
     // bajo consumo hoy
-    const lowConsumption = lastHours.every(h => h.kwh <= 2)
+    const lowConsumption = lastHours.every(h => h.kwh <= 100)
     const isIdleWindow = lastHours.every(h => h.state === "idle")
   
     // consumo histórico ayer para la misma hora
@@ -394,7 +391,8 @@ function renderShutdownPanel(data) {
     if (!container) return;
 
     data.forEach(item => {
-        console.log('renderShutdownPanel',item);
+        console.log('renderShutdownPanel');
+        console.log(item);
 
         const branchSafe =
             item.branch.replace(/\s+/g, "_");
@@ -441,9 +439,9 @@ function renderShutdownPanel(data) {
                         <input class="form-check-input" type="checkbox" id="switchAtm" checked>
                         <label id="switchLabel" class="form-check-label smallSwitchLabel" for="switchAtm">Auto</label>
                     </div>
-                    <div class="form-check form-switch" style="display:flex; align-items:center; gap:6px;">
-                        <input class="form-check-input" type="checkbox" id="switchPower" checked>
-                        <label id="switchPowerLabel" class="form-check-label smallSwitchLabel" for="switchPower">ON</label>
+                    <div class="form-check form-switch" style="margin-left:1em;display:flex; align-items:center; gap:6px;">
+                        <input class="form-check-input" type="checkbox" id="switchPower-${branchSafe}-${item.atmId}">
+                        <label id="switchPowerLabel-${branchSafe}-${item.atmId}" class="form-check-label smallSwitchLabel" for="switchPower-${branchSafe}-${item.atmId}">Apagado</label>
                     </div>
                 </div>
                 <div class="atmExplanation"
@@ -480,39 +478,53 @@ function renderShutdownPanel(data) {
         const action =
             panel.querySelector(".atmAction");
 
-        console.log('power actual',item.currentPowerState);
         let actualPowerState = item.currentPowerState;
-        //item.currentPowerState = item.action === "OFF" ? item.currentPowerState = 0 : item.currentPowerState = 1;
+        item.currentPowerState = item.action === "OFF" ? 0 : 1;
 
-        console.log('recomendado:',item.action === "OFF" ? item.currentPowerState = 0 : item.currentPowerState = 1);
+        //Actualizamos estado del ATM
+        const group = groups.find(g => g.name === item.branch);
+        if (group) {
+            const atm = group.atms.find(a => a.id === item.atmId);
+            if (atm) {
+                atm.powerState = item.currentPowerState;
+                atm.automaticMode = item.currentAutomaticMode;
+            }
+        }
 
-        item.currentPowerState = item.automaticMode && item.action === "OFF" ? item.currentPowerState = 0 : item.currentPowerState = 1;
-
-        console.log('aplicado automatico:',item.action === "OFF" ? item.currentPowerState = 0 : item.currentPowerState = 1);
-
-        const switchPower = document.getElementById('switchPower');
+        //Actualizamos estado de switch power
+        const switchPower = document.getElementById(`switchPower-${branchSafe}-${item.atmId}`);
         switchPower.checked = item.currentPowerState == 1;
         switchPower.dispatchEvent(new Event('change', { bubbles: true }));    
     
-        action.textContent =
-            item.action === "OFF" && actualPowerState == 1
-                ? "Apagar"
-                : item.action === "OFF" && actualPowerState == 0
-                ? "Mantener apagado"
-                : item.action === "ON" && actualPowerState == 1
-                ? "Mantener encendido"
-                : "Encender";
+        // // action.textContent =
+        // //     item.action === "OFF" && actualPowerState == 1 ? "Apagar"
+        // //         : item.action === "OFF" && actualPowerState == 0 ? "Mantener apagado"
+        // //         : item.action === "ON" && actualPowerState == 0 ? "Encender"
+        // //         : "Mantener encendido";
 
-        action.style.background =
-            item.action === "OFF"
-                ? "#dc2626"
-                : "#16a34a";
+        // // action.style.background =
+        // //     item.action === "OFF"
+        // //         ? "#dc2626"
+        // //         : "#16a34a";
 
-        panel.querySelector(".atmExplanation").textContent =
-            `IA : ${item.explanation}`;
+        panel.querySelector(".atmExplanation").innerHTML =
+            `<span class="badge bg-info text-dark" style="font-size:0.9em;">
+            <i class="fa-solid fa-brain"></i>
+          IA : ${item.explanation}</span>`;
 
         panel.querySelector(".atmConfidence").textContent =
             `confianza: ${Math.round(item.confidence * 100)}%`;
+
+        // let switchPower = document.getElementById(`switchPower-${branchSafe}-${item.atmId}`);
+        // let switchPowerLabel = document.getElementById(`switchPowerLabel-${branchSafe}-${item.atmId}`);
+        
+        // switchPower.addEventListener('change', () => {
+        //     if (switchPower.checked) {
+        //         switchPowerLabel.textContent = "Encendido"; // ON
+        //     } else {
+        //         switchPowerLabel.textContent = "Apagado"; // OFF
+        //     }
+        // });
     });
 
     const switchAtm = document.getElementById('switchAtm');
@@ -526,16 +538,7 @@ function renderShutdownPanel(data) {
         }
     });
 
-    const switchPower = document.getElementById('switchPower');
-    const switchPowerLabel = document.getElementById('switchPowerLabel');
     
-    switchPower.addEventListener('change', () => {
-        if (switchPower.checked) {
-            switchPowerLabel.textContent = "ON"; // ON
-        } else {
-            switchPowerLabel.textContent = "OFF"; // OFF
-        }
-    });
 }
 
 
@@ -618,8 +621,11 @@ function renderShutdownPanel(data) {
     const hadRecentPeak = atm.daily
       .slice(-ultimasHorasReferencia)
       .some(h => h.state === "peak_operational")
+    
+      console.log('generateLLMExplanation')
+      console.log(hadRecentPeak)
   
-    if (idleHours <= ultimasHorasReferencia && avgConsumption <= 2 && !hadRecentPeak) {
+    if (idleHours <= ultimasHorasReferencia && avgConsumption <= 100 && !hadRecentPeak && atm.actualPowerState == 1) {
       return "Apagado recomendado: inactividad sostenida y consumo bajo detectado."
     }
   
@@ -627,11 +633,11 @@ function renderShutdownPanel(data) {
       return "Mantener encendido: actividad reciente en franja peak."
     }
   
-    if (avgConsumption > ultimasHorasReferencia) {
+    if (avgConsumption > 100) {
       return "Mantener encendido: consumo indica uso activo del ATM."
     }
   
-    return "Estado estable: sin condiciones claras para apagado."
+    return "Estado estable: mantener estado actual."//sin condiciones claras para apagado."
   }
 
 function computeCO2Impact(groups, shutdownMap) {
@@ -821,16 +827,18 @@ function updateCO2Chart(impact) {
     const isOperating = schedule.operationHours.includes(h)
   
     let state, kwh
-  
+
     if (isIdle) {
       state = "idle"
-      kwh = 2//Math.floor(Math.random() * 2) + 1
-    } else if (isPeak) {
+      kwh = Math.floor(Math.random() * (50 - 10 + 1)) + 10;//2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
+    } 
+    else if (isPeak) {
       state = "peak_operational"
-      kwh = 9//Math.floor(Math.random() * 3) + 7
-    } else if (isOperating) {
+      kwh = Math.floor(Math.random() * (800 - 700 + 1)) + 700;//9//Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
+    } 
+    else if (isOperating) {
       state = "operational"
-      kwh = 6//Math.floor(Math.random() * 4) + 3
+      kwh = Math.floor(Math.random() * (500 - 300 + 1)) + 300;//6//Math.floor(Math.random() * 4) + 3 // 3–6 kWh
     }
   
     const co2 = kwh * factorEmisionxKWhDiario
@@ -974,7 +982,7 @@ function renderATMkWh(atmKey, atmImpactItem) {
       type: "bar",
   
       data: {
-        labels: ["Actual", "Optimizado"],
+        labels: ["Normal", "Optimizado"],
   
         datasets: [{
           label: "kWh",
@@ -1036,7 +1044,7 @@ function renderATMCo2(atmKey, atmImpactItem) {
       type: "bar",
   
       data: {
-        labels: ["Actual", "Optimizado"],
+        labels: ["Normal", "Optimizado"],
   
         datasets: [{
           label: "CO₂",
