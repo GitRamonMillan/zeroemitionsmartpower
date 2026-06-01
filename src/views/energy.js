@@ -152,7 +152,7 @@ export function renderEnergy() {
       type: 'bar',
       data: {
         labels: branchData.map(b => b.name),
-        datasets: [{ label: 'Consumo total (KWh)', data: branchData.map(b => b.total), backgroundColor: '#4f46e5' }]
+        datasets: [{ label: 'Consumo total (Wh)', data: branchData.map(b => b.total), backgroundColor: '#4f46e5' }]
       },
       options: { defaultChartOptions }
     });
@@ -935,7 +935,7 @@ function updateCO2Chart(impact) {
         plugins: {
             title: {
                 display: true,
-                text: 'Consumo kWh',
+                text: 'Consumo wh',
                 font: {
                     size: 12,
                     weight: 'bold'
@@ -985,7 +985,7 @@ function renderATMkWh(atmKey, atmImpactItem) {
         labels: ["Normal", "Optimizado"],
   
         datasets: [{
-          label: "kWh",
+          label: "wh",
   
           data: [
             atmImpactItem.currentKwh,
@@ -1007,7 +1007,7 @@ function renderATMkWh(atmKey, atmImpactItem) {
         },
             title: {
                 display: true,
-                text: 'Consumo kWh',
+                text: 'Consumo wh',
                 font: {
                     size: 12,
                     weight: 'bold'
@@ -1125,7 +1125,7 @@ export function renderHourChart(atm) {
             responsive: true,
             scales: {
                 x: { stacked: true },
-                y: { stacked: true, title: { display: true, text: "kWh" } }
+                y: { stacked: true, title: { display: true, text: "wh" } }
             }
         }
     });
@@ -1160,7 +1160,7 @@ export function renderYesterdayHourChart(atm) {
             responsive: true,
             scales: {
                 x: { stacked: true },
-                y: { stacked: true, title: { display: true, text: "kWh" } }
+                y: { stacked: true, title: { display: true, text: "wh" } }
             }
         }
     });

@@ -188,6 +188,7 @@ button:focus-visible {
 
 .atmShutdownPanel {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: var(--bs-border-radius);
 }
 
 .atmShutdownPanel:hover {
