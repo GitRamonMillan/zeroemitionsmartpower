@@ -128,7 +128,6 @@ button:focus-visible {
 
 .panel-container {
   display: flex;
-  gap: 1rem;
   flex-wrap: wrap; /* permite apilar en pantallas pequeñas */
 }
 
@@ -200,6 +199,37 @@ button:focus-visible {
 .smallSwitchLabel {
   font-size: 0.75rem; /* tamaño pequeño */
   font-weight: 500;   /* opcional, más ligero */
+}
+
+.card-body {
+  padding: 0.5em !important;
+}
+
+.atmTitle {
+  font-size: 0.9em;
+}
+
+/* barras de color */
+.bar-title {
+  color: #fff;
+}
+
+.bar-primary {
+  background: linear-gradient(90deg, #0d6efd, #4dabf7);
+  color: #fff;
+}
+
+.bar-success {
+  background: linear-gradient(90deg, #198754, #4cd964);
+}
+
+.bar-warning {
+  background: linear-gradient(90deg, #ffc107, #ffda6a);
+  color: #000;
+}
+
+.bar-danger {
+  background: linear-gradient(90deg, #dc3545, #ff6b6b);
 }
 
 /* MOBILE */

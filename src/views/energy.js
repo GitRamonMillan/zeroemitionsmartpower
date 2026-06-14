@@ -3,7 +3,7 @@ import { getYesterdayEnergy } from '../services/energy.js'
 import { state } from '../state/state.js'
 
 const factorEmisionxKWhAnual = 0.2421 //Factor de emisión del Sistema eléctrico Nacional 2023 (SEN) (ANUAL)
-const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
+const factorEmisionxKWhDiario = 0.3;//factorEmisionxKWhAnual / 365
 //fuente : https://huellachile.mma.gob.cl/wp-content/uploads/2024/11/HuellaChile-DCC-Factores-de-emision-nivel-basico_v3.pdf
 
 let branchChart, branchChartCO2, atmChart, hourChart
@@ -40,10 +40,16 @@ function computeShutdownMap(groups, yesterdayData) {
         const yesterdayBranch = yesterdayData.find(b => b.name === branch.name)
         const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
   
+        console.log(atm)
+        console.log(yesterdayATM)
+
         const shouldOff = yesterdayATM
           ? shouldShutdownATMWithYesterday(atm, yesterdayATM)
           : false // si no hay data de ayer, default ON
   
+        console.log('shouldOff',shouldOff)
+        console.log('atm.daily.at(-1)?.state',atm.daily.at(-1)?.state)
+
         return {
           branch: branch.name,
           atmId: atm.id,
@@ -59,21 +65,41 @@ function computeShutdownMap(groups, yesterdayData) {
   }
 
   function shouldShutdownATMWithYesterday(todayATM, yesterdayATM) {
-    const lastHours = todayATM.daily.slice(-ultimasHorasReferencia) // últimas 3 horas
+    console.log('horaActual',horaActual);
+    const lastHours = todayATM.daily.slice(horaActual-ultimasHorasReferencia) // últimas 3 horas
+    console.log('lastHours',lastHours);
     const currentHour = todayATM.daily.slice(-1) // últimas 3 horas
+    console.log('currentHour',currentHour);
 
     // bajo consumo hoy
     const lowConsumption = lastHours.every(h => h.kwh <= 100)
     const isIdleWindow = lastHours.every(h => h.state === "idle")
   
     // consumo histórico ayer para la misma hora
-    const yesterdayHours = yesterdayATM.daily.slice(-ultimasHorasReferencia)
+    console.log('actual - ref',horaActual-ultimasHorasReferencia)
+    //const yesterdayHours = yesterdayATM.daily.slice(horaActual-ultimasHorasReferencia)
+    const yesterdayHours = Array.from(
+      { length: ultimasHorasReferencia },
+      (_, i) => {
+        const index =
+          (horaActual - ultimasHorasReferencia + i + yesterdayATM.daily.length) %
+          yesterdayATM.daily.length
+    
+        return yesterdayATM.daily[index]
+      }
+    )
+    
+    console.log('yesterdayHours',yesterdayHours);
     const wasIdleYesterday = yesterdayHours.every(h => h.state === "idle")
     
     //No se encuentra en hora peak
-    console.log('shouldShutdownATMWithYesterday',currentHour);
+    //////console.log('shouldShutdownATMWithYesterday',currentHour);
     const notAtPeak = currentHour.state != "peak"
 
+    console.log('lowConsumption',lowConsumption);
+    console.log('isIdleWindow',isIdleWindow);
+    console.log('wasIdleYesterday',wasIdleYesterday);
+    console.log('notAtPeak',notAtPeak);
     // decisión combinada
     return lowConsumption && isIdleWindow && wasIdleYesterday && notAtPeak
   }
@@ -97,15 +123,22 @@ function computeShutdownMap(groups, yesterdayData) {
           currentKwh += hour.kwh
           currentCO2 += hour.co2
 
+          
+          
+          // if (
+          //   decision?.action === "OFF" &&
+          //   hour.state === "idle"
+          // ) {
+          //   return
+          // }
+
           if (
-            decision?.action === "OFF" &&
-            hour.state === "idle"
+            //decision?.action !== "OFF" &&
+            hour.state !== "idle"
           ) {
-            return
+            optimizedKwh += hour.kwh
+            optimizedCO2 += hour.co2
           }
-  
-          optimizedKwh += hour.kwh
-          optimizedCO2 += hour.co2
         })
   
         atmImpact.push({
@@ -174,7 +207,7 @@ export function renderEnergy() {
         labels: branchData.map(b => b.name),
         datasets: [
           { label: 'CO2 Generado', data: branchData.map(c => c.co2), backgroundColor: '#f59e0b' },
-          { label: 'Meta reducción CO2', data: branchData.map(c => c.metaCO2), backgroundColor: '#22c55e' }
+          //{ label: 'Meta reducción CO2', data: branchData.map(c => c.metaCO2), backgroundColor: '#22c55e' }
         ]
       },
       options: { defaultChartOptions }
@@ -259,45 +292,22 @@ export function renderEnergy() {
       renderCO2Impact(impact);
       renderCO2Chart(impact);
       renderBranchChart(groups);
+      renderBranchChartCO2(groups);
 
-      const atmImpact = computeATMImpact(groups, shutdownMap);
+      const atmImpact = computeATMImpact(groups, decisions);
       renderAllATMCharts(atmImpact);
     });
 
     
 //render charts iniciales
     groups.forEach(branch => {
-        console.log(branch)
         branch.atms.forEach(atm => {
-            console.log("render ATM:", atm);
             renderHourChart({
                 ...atm,
                 branch: branch.name
             });
         });
     });
-    
-
-
-        
-
-    // // ===== Combobox para filtrar sucursal =====
-    // const branchFilter = document.getElementById('branchFilter');
-    // branchFilter.addEventListener('change', e => {
-    //     const selected = e.target.value;
-
-    //     if (selected === 'all') {
-    //         // Mostrar todos
-    //         renderShutdownPanel(shutdownMap);
-    //         renderATMPanels(groups);
-    //     } else {
-    //         const branch = groups.find(b => b.name === selected);
-    //         const filteredShutdownMap = computeShutdownMap([branch], yesterday);
-
-    //         renderShutdownPanel(filteredShutdownMap);
-    //         renderATMPanels([branch]);
-    //     }
-    // });
 }, 0);
 
   // ================= HTML del Dashboard =================
@@ -345,18 +355,53 @@ export function renderEnergy() {
             </div>
         </div>-->
     </div>
+    <div class="panel-container row g-1">
 
-    <div class="panel-container">
-        <div class="card panel-left p-3 mb-3">
-            <h5>Estado</h5>
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100 compact-card">
+          <div class="card-header bar-primary">
+            <span class="bar-title">Estado</span>
+          </div>
+          <div class="card-body">
             <div id="shutdownPanel"></div>
+          </div>
         </div>
-        <div class="card panel-right p-3 mb-3">
-            <h5>Última semana vs Hoy</h5>
-            <div id="atmPanel"></div>
-        </div>
-    </div>
+      </div>
 
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100 compact-card">
+          <div class="card-header bar-primary">
+            <span class="bar-title">Horarios de actividad</span>
+          </div>
+          <div class="card-body">
+            <div id="atmPanel"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100 compact-card">
+          <div class="card-header bar-primary">
+            <span class="bar-title">Consumo energético</span>
+          </div>
+          <div class="card-body">
+            <div id="atmWhPanel"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="card h-100 compact-card">
+          <div class="card-header bar-primary">
+            <span class="bar-title">Generación de CO2</span>
+          </div>
+          <div class="card-body">
+            <div id="atmCO2Panel"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-3">
     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
         <div class="card p-3 mb-3" style="flex: 1; min-width: 300px;">
             <h5>Sucursales</h5>
@@ -380,6 +425,7 @@ export function renderEnergy() {
             <h5 id="hourTitle">Detalle horario</h5>
             <canvas id="hourChart"></canvas>
         </div>-->
+    </div>
     </div>
   `;
 }
@@ -444,9 +490,7 @@ function renderShutdownPanel(data) {
                         <label id="switchPowerLabel-${branchSafe}-${item.atmId}" class="form-check-label smallSwitchLabel" for="switchPower-${branchSafe}-${item.atmId}">Apagado</label>
                     </div>
                 </div>
-                <div class="atmExplanation"
-                    style="font-size:12px; margin-top:4px; color:#555;">
-                </div>
+                <div class="atmExplanation alert alert-primary p-1"></div>
                 <div class="atmConfidence"
                     style="font-size:11px; color:#999;">
                 </div>
@@ -495,36 +539,14 @@ function renderShutdownPanel(data) {
         const switchPower = document.getElementById(`switchPower-${branchSafe}-${item.atmId}`);
         switchPower.checked = item.currentPowerState == 1;
         switchPower.dispatchEvent(new Event('change', { bubbles: true }));    
-    
-        // // action.textContent =
-        // //     item.action === "OFF" && actualPowerState == 1 ? "Apagar"
-        // //         : item.action === "OFF" && actualPowerState == 0 ? "Mantener apagado"
-        // //         : item.action === "ON" && actualPowerState == 0 ? "Encender"
-        // //         : "Mantener encendido";
-
-        // // action.style.background =
-        // //     item.action === "OFF"
-        // //         ? "#dc2626"
-        // //         : "#16a34a";
 
         panel.querySelector(".atmExplanation").innerHTML =
-            `<span class="badge bg-info text-dark" style="font-size:0.9em;">
+            `<span style="font-size:0.9em;">
             <i class="fa-solid fa-brain"></i>
           IA : ${item.explanation}</span>`;
 
         panel.querySelector(".atmConfidence").textContent =
             `confianza: ${Math.round(item.confidence * 100)}%`;
-
-        // let switchPower = document.getElementById(`switchPower-${branchSafe}-${item.atmId}`);
-        // let switchPowerLabel = document.getElementById(`switchPowerLabel-${branchSafe}-${item.atmId}`);
-        
-        // switchPower.addEventListener('change', () => {
-        //     if (switchPower.checked) {
-        //         switchPowerLabel.textContent = "Encendido"; // ON
-        //     } else {
-        //         switchPowerLabel.textContent = "Apagado"; // OFF
-        //     }
-        // });
     });
 
     const switchAtm = document.getElementById('switchAtm');
@@ -553,7 +575,7 @@ function renderShutdownPanel(data) {
         horaActual+=1
         if (horaActual > 23) {
             groups = getEnergy()
-            console.log('Nuevo día iniciado')
+            //console.log('Nuevo día iniciado')
         }
         horaActual = horaActual > 23 ? 0:horaActual;
 
@@ -574,19 +596,11 @@ function renderShutdownPanel(data) {
                 const stateEl = document.getElementById(`state-${branch.name}-${atm.id}`)
                 const shouldOff = shouldShutdownATMWithYesterday(atm, yesterdayATM)
                 stateEl.textContent = shouldOff ? "OFF" : "ON"
-
-                // groups.forEach(branch => {
-
-                //     branch.atms.forEach(atm => {
             
-                        updateHourChart({
-                            ...atm,
-                            branch: branch.name
-                        });
-            
-                //     });
-            
-                // });
+                updateHourChart({
+                    ...atm,
+                    branch: branch.name
+                });
             })
       })
 
@@ -607,7 +621,7 @@ function renderShutdownPanel(data) {
 
 
   function sendToRelay(decision) {
-    console.log(`⚡ [SIMULATED RELAY] ${decision.atmId} → ${decision.action}`)
+    //console.log(`⚡ [SIMULATED RELAY] ${decision.atmId} → ${decision.action}`)
   }
 
   function generateLLMExplanation(atm) {
@@ -621,9 +635,6 @@ function renderShutdownPanel(data) {
     const hadRecentPeak = atm.daily
       .slice(-ultimasHorasReferencia)
       .some(h => h.state === "peak_operational")
-    
-      console.log('generateLLMExplanation')
-      console.log(hadRecentPeak)
   
     if (idleHours <= ultimasHorasReferencia && avgConsumption <= 100 && !hadRecentPeak && atm.actualPowerState == 1) {
       return "Apagado recomendado: inactividad sostenida y consumo bajo detectado."
@@ -796,16 +807,12 @@ function renderCO2Chart(impact) {
 
 function updateCO2Chart(impact) {
     if (!co2Chart) return
-
-    console.log('actualizar renderCO2Chart',impact);
   
     const newCurrent = impact.branches.map(b => b.currentCO2)
     const newOptimized = impact.branches.map(b => b.optimizedCO2)
-    //const newSavings = impact.branches.map(b => b.savings)
   
     co2Chart.data.datasets[0].data = newCurrent
     co2Chart.data.datasets[1].data = newOptimized
-    //co2Chart.data.datasets[2].data = newSavings
   
     co2Chart.update({
       duration: 600,
@@ -821,7 +828,6 @@ function updateCO2Chart(impact) {
   }
 
   function generateHourData(schedule, h) {
-    console.log('generateHourData',schedule,h)
     const isIdle = schedule.idleHours.includes(h)
     const isPeak = schedule.peakOperationHours.includes(h)
     const isOperating = schedule.operationHours.includes(h)
@@ -830,26 +836,27 @@ function updateCO2Chart(impact) {
 
     if (isIdle) {
       state = "idle"
-      kwh = Math.floor(Math.random() * (50 - 10 + 1)) + 10;//2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
+      kwh = Math.floor(Math.random() * (99 - 90 + 1)) + 90
     } 
     else if (isPeak) {
       state = "peak_operational"
-      kwh = Math.floor(Math.random() * (800 - 700 + 1)) + 700;//9//Math.floor(Math.random() * 3) + 7 // 7–9 kWh (más alto)
+      kwh = Math.floor(Math.random() * (800 - 700 + 1)) + 700
     } 
     else if (isOperating) {
       state = "operational"
-      kwh = Math.floor(Math.random() * (500 - 300 + 1)) + 300;//6//Math.floor(Math.random() * 4) + 3 // 3–6 kWh
+      kwh = Math.floor(Math.random() * (500 - 300 + 1)) + 300
     }
   
     const co2 = kwh * factorEmisionxKWhDiario
+    const powerState = 0;
   
-    return { hour: `${h}:00`, state, kwh, co2 }
+    return { hour: `${h}:00`, state, kwh, co2, powerState }
   }
 
   function updateDailyATM(atm, horaActual) {
     // generar solo la hora actual
-    console.log('updateDailyATM', horaActual,atm.schedule)
     const newHourData = generateHourData(atm.schedule, horaActual)
+    newHourData.powerState = atm.powerState; //Agregamos el estado del ATM al momento de generar la hora
   
     // agregar al daily
     atm.daily.push(newHourData)
@@ -864,32 +871,59 @@ function updateCO2Chart(impact) {
 
   function renderATMPanels(groups) {
     const panel = document.getElementById("atmPanel")
+    const panelWh = document.getElementById("atmWhPanel")
+    const panelCO2 = document.getElementById("atmCO2Panel")
     panel.innerHTML = "" 
+    panel.panelWh = "" 
+    panel.panelCO2 = "" 
   
     groups.forEach(branch => {
       branch.atms.forEach(atm => {
         const atmDiv = document.createElement("div")
         atmDiv.className = "atm-item"
         atmDiv.id = `atm-${branch.name}-${atm.id}`
+
+        const atmWhDiv = document.createElement("div")
+        atmWhDiv.className = "atm-item"
+        atmWhDiv.id = `atm-${branch.name}-${atm.id}`
+
+        const atmCO2Div = document.createElement("div")
+        atmCO2Div.className = "atm-item"
+        atmCO2Div.id = `atm-${branch.name}-${atm.id}`
   
-        // atmDiv.innerHTML = `
-        //   <h4>${branch.name} - ${atm.id}</h4>
-        //   <div>Estado: <span id="state-${branch.name}-${atm.id}">ON</span></div>
-        //   <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
-        // `
         atmDiv.innerHTML = `
-            <strong>${branch.name} - ${atm.id}</strong> Estado: <span id="state-${branch.name}-${atm.id}">ON</span>
+            <strong>${branch.name} - ${atm.id}</strong> <span id="state-${branch.name}-${atm.id}">ON</span>
             <div style="display:flex;
                 flex-direction:row;
                 gap:12px;
                 align-items:center;
                 flex-wrap:wrap;">
                 <canvas id="chart-${branch.name}-${atm.id}" width="200" height="100"></canvas>
+            </div>
+            `
+
+        atmWhDiv.innerHTML = `
+            <strong>${branch.name} - ${atm.id}</strong>
+            <div style="display:flex;
+                flex-direction:row;
+                gap:12px;
+                align-items:center;
+                flex-wrap:wrap;">
                 <canvas 
                     id="kwh-${branch.name}-${atm.id}" 
                     width="220" 
                     height="120">
                 </canvas>
+            </div>
+            `
+
+          atmCO2Div.innerHTML = `
+          <strong>${branch.name} - ${atm.id}</strong>
+            <div style="display:flex;
+                flex-direction:row;
+                gap:12px;
+                align-items:center;
+                flex-wrap:wrap;">
                 <canvas 
                     id="co2-${branch.name}-${atm.id}" 
                     width="220" 
@@ -897,7 +931,9 @@ function updateCO2Chart(impact) {
                 </canvas>
             </div>
             `
-        panel.appendChild(atmDiv)
+          panel.appendChild(atmDiv)
+          panelWh.appendChild(atmWhDiv)
+          panelCO2.appendChild(atmCO2Div)
       })
     })
   }
@@ -935,7 +971,7 @@ function updateCO2Chart(impact) {
         plugins: {
             title: {
                 display: true,
-                text: 'Consumo wh',
+                text: 'Consumo (Wh)',
                 font: {
                     size: 12,
                     weight: 'bold'
@@ -1007,7 +1043,7 @@ function renderATMkWh(atmKey, atmImpactItem) {
         },
             title: {
                 display: true,
-                text: 'Consumo wh',
+                text: 'Consumo (Wh)',
                 font: {
                     size: 12,
                     weight: 'bold'
@@ -1069,7 +1105,7 @@ function renderATMCo2(atmKey, atmImpactItem) {
             },
             title: {
                 display: true,
-                text: 'CO₂ generado',
+                text: 'CO₂ generado (grs)',
                 font: {
                     size: 12,
                     weight: 'bold'

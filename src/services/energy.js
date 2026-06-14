@@ -5,8 +5,9 @@ const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
 //fuente : https://huellachile.mma.gob.cl/wp-content/uploads/2024/11/HuellaChile-DCC-Factores-de-emision-nivel-basico_v3.pdf
 
 const probabilidadHoraPeak =  0.25
-const cajerosPorSucursal = 2
-const groups = ["Agustinas"]//["Agustinas", "Huérfanos", "Moneda"]
+const cajerosPorSucursal = 1
+const groups = ["Agustinas", "Huérfanos", "Moneda"]
+const consumoIdle = 90;
 
 export function updateEnergy(values) {
   return api.updateEnergy(values)
@@ -50,7 +51,7 @@ export function getEnergy() {
     
   
     function generateSchedule() {
-        const start = Math.floor(Math.random() * 4) + 7 // 7–10
+        const start = Math.floor(Math.random() * 6) + 5 // 7–10
         const duration = Math.floor(Math.random() * 6) + 10 // 10–16 horas operativas
       
         const operationHours = Array.from(
@@ -89,7 +90,7 @@ export function getEnergy() {
       
           if (isIdle) {
             state = "idle"
-            kwh = Math.floor(Math.random() * (50 - 10 + 1)) + 10;//2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
+            kwh = Math.floor(Math.random() * (99 - 90 + 1)) + 90; //Math.floor(Math.random() * (50 - 10 + 1)) + 10;//2//Math.floor(Math.random() * 2) + 1 // 1–2 kWh
           } 
           else if (isPeak) {
             state = "peak_operational"
@@ -101,12 +102,14 @@ export function getEnergy() {
           }
       
           const co2 = kwh * factorEmisionxKWhDiario
+          const powerSate = 0;
       
           return {
             hour: `${h}:00`,
             state,
             kwh,
-            co2
+            co2,
+            powerSate
           }
         })
       }

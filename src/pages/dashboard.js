@@ -48,11 +48,8 @@ export function renderDashboard(onLogout) {
 
         sidebar.classList.toggle("open")
 
-        // ocultar botón si sidebar visible
         if (sidebar.classList.contains("open")) {
-            ////menuBtn.style.display = "none"
             menuBtn.classList.add("hidden-btn")
-            //closeSidebar.classList.remove("hidden-btn")
         }
 
     })
@@ -60,11 +57,7 @@ export function renderDashboard(onLogout) {
     const closeSidebar = document.getElementById("closeSidebar")
 
     closeSidebar.addEventListener("click", () => {
-        //closeSidebar.classList.remove("hidden-btn")
         sidebar.classList.remove("open")
-
-        // volver a mostrar hamburguesa
-        // menuBtn.style.display = "block"
         menuBtn.classList.remove("hidden-btn")
     })
 
@@ -91,31 +84,6 @@ export function renderDashboard(onLogout) {
     content.innerHTML = renderEnergy()
 
     startEnergyListeners()
-
-    // let atms = groups.flatMap(branch =>
-    //   branch.atms.map(atm => {
-    //     // buscar el ATM correspondiente en yesterdayData
-    //     const yesterdayBranch = yesterday.find(b => b.name === branch.name)
-    //     const yesterdayATM = yesterdayBranch?.atms.find(a => a.id === atm.id)
-  
-    //     console.log(atm);
-        
-    //     return {
-    //       branch: branch.name,
-    //       atmId: atm.id,
-    //       action: "ON",
-    //       confidence: 1,// Math.random() * 0.3 + (shouldOff ? 0.7 : 0.2),
-    //       explanation: '',//generateLLMExplanation(atm),
-    //       currentActivityState: atm.daily.at(-1)?.state,
-    //       currentPowerState: atm.powerState
-    //     }
-    //   })
-    // )
-
-    // atms.forEach(atm => {
-    //         console.log('data.forEach',atm);
-    //     renderHourChart(atm);
-    // })
   }
 
   function startEnergyListeners(){
@@ -138,14 +106,14 @@ export function renderDashboard(onLogout) {
 
       // Listener del reset
       resetBtn.addEventListener('click', () => {
-        clearInterval(intervalId);
-        seconds = 0;
-        updateDisplay();
-        const icon = playPauseBtn.querySelector('i');
-        icon.classList.remove('bi-pause-fill');
-        icon.classList.add('bi-play-fill');
-        state.isRunning = false;
-        console.log(state.isRunning);
+        self.location.reload();
+        // clearInterval(intervalId);
+        // seconds = 0;
+        // updateDisplay();
+        // const icon = playPauseBtn.querySelector('i');
+        // icon.classList.remove('bi-pause-fill');
+        // icon.classList.add('bi-play-fill');
+        // state.isRunning = false;
       });
 
 
@@ -153,12 +121,9 @@ export function renderDashboard(onLogout) {
 
 
   document.addEventListener("click", e => {
-    console.log(e.target);
     if(e.target.id.indexOf('switchAtm') > -1 || e.target.id.indexOf('switchPower') > -1) return
     const target = e.target.closest(".atmShutdownPanel");
-    console.log(target);
     if (!target) return;
-    console.log("ATM clickeado:", target.dataset.atmbranch, target.dataset.atmid);
     // Busca el ATM dentro de groups
     const branch = groups.find(b => b.name === target.dataset.atmbranch);
     const atm = branch?.atms.find(a => a.id === target.dataset.atmid);
@@ -181,38 +146,15 @@ export function renderDashboard(onLogout) {
 
 document.addEventListener("change", e => {
   if(e.target.id.indexOf('switchPower') == -1) return
-  console.log('detecta change switchPower')
   let switchPower = document.getElementById(e.target.id)
-  console.log(switchPower)
   
   let switchPowerLabel = document.getElementById(e.target.id.replace('switchPower','switchPowerLabel'))
-  console.log(switchPowerLabel)
   if (switchPower.checked) {
         switchPowerLabel.textContent = "Encendido";
     } else {
         switchPowerLabel.textContent = "Apagado"; 
     }
 });
-
-
-// const atmShutdownPanel = document.getElementById("atmShutdownPanel")
-// atmShutdownPanel.addEventListener('click', e => {
-//     console.log('atmshutdownoanel',e);
-
-
-//     // const atmBranch = e.currentTarget.dataset.atmBranch;
-//     // const atmId = e.currentTarget.dataset.atmId;
-//     // console.log("ID clickeado:", atmBranch, atmId);
-// });
-
-//         // if (!selectedATM.length) return
-    
-//     //     const index = elements[0].index
-//     //     selectedAtm = branch.atms[index]
-
-//     //     renderHourChart(selectedAtm)},
-
-
 
   // navegación
   document.querySelector('#navEnergy').onclick = showEnergy
