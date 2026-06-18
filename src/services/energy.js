@@ -6,7 +6,7 @@ const factorEmisionxKWhDiario = factorEmisionxKWhAnual / 365
 
 const probabilidadHoraPeak =  0.25
 const cajerosPorSucursal = 1
-const groups = ["Agustinas", "Huérfanos", "Moneda"]
+const groups = ["Agustinas"]//["Agustinas", "Huérfanos", "Moneda"]
 const consumoIdle = 90;
 
 export function updateEnergy(values) {

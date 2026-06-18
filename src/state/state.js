@@ -4,5 +4,8 @@ export const state = {
     seconds: 0,
     // cualquier otra variable global
     selectedBranch: null,
-    metaReduccionCO2: 0.5
+    metaReduccionCO2: 0.5,
+    useLLMAPI: false,
+    LLMAPIState: false,
+    waitingResponse: false
 }

@@ -89,6 +89,7 @@ export function renderDashboard(onLogout) {
   function startEnergyListeners(){
     const playPauseBtn = document.getElementById('playPauseBtn');
     const resetBtn = document.getElementById('resetBtn');
+    const LLMBtn = document.getElementById('LLMBtn');
         // Listener del botón
       playPauseBtn.addEventListener('click', () => {
         const icon = playPauseBtn.querySelector('i');
@@ -116,7 +117,23 @@ export function renderDashboard(onLogout) {
         // state.isRunning = false;
       });
 
-
+      LLMBtn.addEventListener('click', () => {
+        state.useLLMAPI = !state.useLLMAPI;
+        if (!state.useLLMAPI) {
+          LLMBtn.classList.remove('btn-primary');
+          LLMBtn.classList.add('btn-secondary');
+        } else {
+          LLMBtn.classList.remove('btn-secondary');
+          LLMBtn.classList.add('btn-primary');
+        }
+        // clearInterval(intervalId);
+        // seconds = 0;
+        // updateDisplay();
+        // const icon = playPauseBtn.querySelector('i');
+        // icon.classList.remove('bi-pause-fill');
+        // icon.classList.add('bi-play-fill');
+        // state.isRunning = false;
+      });
   }
 
 
