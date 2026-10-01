@@ -120,9 +120,11 @@ export function renderDashboard(onLogout) {
       LLMBtn.addEventListener('click', () => {
         state.useLLMAPI = !state.useLLMAPI;
         if (!state.useLLMAPI) {
+          document.getElementById('operationStateLog').textContent = 'LLM desactivado. Fallback Engine operativo...';
           LLMBtn.classList.remove('btn-primary');
           LLMBtn.classList.add('btn-secondary');
         } else {
+          document.getElementById('operationStateLog').textContent = 'LLM activado...';
           LLMBtn.classList.remove('btn-secondary');
           LLMBtn.classList.add('btn-primary');
         }

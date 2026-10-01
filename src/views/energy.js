@@ -40,82 +40,32 @@ export let groups = getEnergy()
 
 let simulationRunning = false;
 
-function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
-    const lastHours = todayATM.daily.slice(
-        Math.max(0, horaActual - ultimasHorasReferencia)
-    );
-
-    const currentHour = todayATM.daily.at(-1);
-
-    if (!currentHour || lastHours.length === 0) {
-        return {
-            decision: "ON",
-            confidence: 0.5,
-            reason: "Sin datos suficientes para recomendar el apagado."
-        };
-    }
-
-    const lowConsumption = lastHours.every(h => h?.kwh <= 100);
-    const isIdleWindow = lastHours.every(h => h?.state === "idle");
-
-    if (!yesterdayATM?.daily?.length) {
-        return {
-            decision: "ON",
-            confidence: 0.5,
-            reason: "Sin datos históricos suficientes para recomendar el apagado."
-        };
-    }
-
+  function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
+    const lastHours = todayATM.daily.slice(horaActual-ultimasHorasReferencia) // últimas 3 horas
+    const currentHour = todayATM.daily.slice(-1) // últimas 3 horas
+    
+    // bajo consumo hoy
+    const lowConsumption = lastHours.every(h => h.kwh <= 100)
+    const isIdleWindow = lastHours.every(h => h.state === "idle")
+  
+    // consumo histórico ayer para la misma hora
     const yesterdayHours = Array.from(
-        { length: ultimasHorasReferencia },
-        (_, i) => {
-            const index =
-                (
-                    horaActual -
-                    ultimasHorasReferencia +
-                    i +
-                    yesterdayATM.daily.length
-                ) % yesterdayATM.daily.length;
+      { length: ultimasHorasReferencia },
+      (_, i) => {
+        const index =
+          (horaActual - ultimasHorasReferencia + i + yesterdayATM.daily.length) %
+          yesterdayATM.daily.length
+    
+        return yesterdayATM.daily[index]
+      }
+    )
+    
+    const wasIdleYesterday = yesterdayHours.every(h => h.state === "idle")
+    
+    const notAtPeak = currentHour.state != "peak"
 
-            return yesterdayATM.daily[index];
-        }
-    ).filter(Boolean);
-
-    const wasIdleYesterday =
-        yesterdayHours.length === ultimasHorasReferencia &&
-        yesterdayHours.every(h => h?.state === "idle");
-
-    const notAtPeak = currentHour?.state !== "peak";
-
-    const shouldOff =
-        lowConsumption &&
-        isIdleWindow &&
-        wasIdleYesterday &&
-        notAtPeak;
-
-    const decision = shouldOff ? "OFF" : "ON";
-
-    // Actualizar estado visual del switch
-    const atmId = todayATM.id || todayATM.name;
-
-    if (atmId) {
-        const label = document.getElementById(
-            `switchPowerLabel-${atmId}`
-        );
-
-        if (label) {
-            label.textContent = decision === "OFF"
-                ? "Apagado"
-                : "Encendido";
-        }
-    }
-
-    return {
-        decision,
-        confidence: shouldOff ? 0.85 : 0.80,
-        reason: generateLLMExplanation(todayATM)
-    };
-}
+    return lowConsumption && isIdleWindow && wasIdleYesterday && notAtPeak
+  }
 
   async function computeShutdownMap(groups, yesterdayData) {
     return Promise.all(
@@ -199,6 +149,7 @@ function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
         return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
       }
       console.log('using LLM model...');
+      document.getElementById('operationStateLog').textContent = 'enviando prompt LLM...';
 
       const currentHour = todayATM.daily.at(-1)
       if (!currentHour) return resolve(false)
@@ -284,7 +235,7 @@ function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
 
           parsed = JSON.parse(cleanText);
         } catch (e) {
-          console.error("LLM parse error:", e, res);
+          console.log("LLM parse error:", e, res);
           responseOk = false;
           // parsed = {
           //   decision: "ON",
@@ -302,21 +253,28 @@ function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
         }
         else{
           console.log('LLM no disponible. Activando Fallback Engine...')
-          return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
+          document.getElementById('operationStateLog').textContent = 'LLM no disponible. Fallback Engine operativo...';
+
+          const fallback = shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM);
+
+          resolve({
+            decision: fallback ? "OFF" : "ON",
+            confidence: 0.5,
+            reason: generateLLMExplanation(todayATM)
+          });
         } 
       })
       .catch(() => {
-        console.log('fallback...')
-        return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
-        // const fallback = shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM);
+        console.log('Error en llamada LLM. Activando Fallback Engine...')
+        document.getElementById('operationStateLog').textContent = 'LLM no disponible. Activando Fallback Engine...';
+        const fallback = shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM);
 
-        // resolve({
-        //   decision: fallback ? "OFF" : "ON",
-        //   confidence: 0.5,
-        //   reason: generateLLMExplanation(todayATM)
-        // });
+        resolve({
+          decision: fallback ? "OFF" : "ON",
+          confidence: 0.5,
+          reason: generateLLMExplanation(todayATM)
+        });
       });
-      //if(!responseOk) return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM));
     });
   }
 
@@ -420,6 +378,7 @@ export function renderEnergy() {
                 LLM
             </button>
         </div>
+        <span class="form-check-label smallSwitchLabel" id="operationStateLog">LLM desactivado. Fallback Engine activo...</span>
     </div>
 
     <div class="panel-container row g-1">
