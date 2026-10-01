@@ -40,34 +40,48 @@ export let groups = getEnergy()
 
 let simulationRunning = false;
 
-  function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
-    const explanationSource = document.getElementById("explanationSource")
-    if(explanationSource) explanationSource.textContent = 'FBE'
-    const lastHours = todayATM.daily.slice(horaActual-ultimasHorasReferencia) // últimas 3 horas
-    const currentHour = todayATM.daily.slice(-1) // últimas 3 horas
-    
-    // bajo consumo hoy
-    const lowConsumption = lastHours.every(h => h.kwh <= 100)
-    const isIdleWindow = lastHours.every(h => h.state === "idle")
-  
-    // consumo histórico ayer para la misma hora
-    const yesterdayHours = Array.from(
+function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
+  const lastHours = todayATM.daily.slice(
+      horaActual - ultimasHorasReferencia
+  );
+
+  const currentHour = todayATM.daily.at(-1);
+
+  const lowConsumption = lastHours.every(h => h.kwh <= 100);
+  const isIdleWindow = lastHours.every(h => h.state === "idle");
+
+  const yesterdayHours = Array.from(
       { length: ultimasHorasReferencia },
       (_, i) => {
-        const index =
-          (horaActual - ultimasHorasReferencia + i + yesterdayATM.daily.length) %
-          yesterdayATM.daily.length
-    
-        return yesterdayATM.daily[index]
-      }
-    )
-    
-    const wasIdleYesterday = yesterdayHours.every(h => h.state === "idle")
-    
-    const notAtPeak = currentHour.state != "peak"
+          const index =
+              (horaActual -
+                  ultimasHorasReferencia +
+                  i +
+                  yesterdayATM.daily.length) %
+              yesterdayATM.daily.length;
 
-    return lowConsumption && isIdleWindow && wasIdleYesterday && notAtPeak
-  }
+          return yesterdayATM.daily[index];
+      }
+  );
+
+  const wasIdleYesterday = yesterdayHours.every(
+      h => h.state === "idle"
+  );
+
+  const notAtPeak = currentHour.state !== "peak";
+
+  const shouldOff =
+      lowConsumption &&
+      isIdleWindow &&
+      wasIdleYesterday &&
+      notAtPeak;
+
+  return {
+      decision: shouldOff ? "OFF" : "ON",
+      confidence: shouldOff ? 0.85 : 0.80,
+      reason: generateLLMExplanation(todayATM)
+  };
+}
 
   async function computeShutdownMap(groups, yesterdayData) {
     return Promise.all(
@@ -145,9 +159,6 @@ let simulationRunning = false;
   }
 
   function shouldShutdownATMWithYesterdayLLM(todayATM, yesterdayATM) {
-    const explanationSource = document.getElementById("explanationSource")
-    if(explanationSource) explanationSource.textContent = 'LLM'
-
     return new Promise((resolve) => {
       console.log('state.useLLMAPI',state.useLLMAPI)
       if(!state.useLLMAPI) {
