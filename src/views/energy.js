@@ -218,6 +218,7 @@ let simulationRunning = false;
           `;
 
     const URL = "https://zeroemitionsmartpower-backend.onrender.com/chat"
+    let responseOk = true
   
       fetch(URL, {
         method: "POST",
@@ -234,29 +235,35 @@ let simulationRunning = false;
           parsed = JSON.parse(cleanText);
         } catch (e) {
           console.error("LLM parse error:", e, res);
-
-          parsed = {
-            decision: "ON",
-            confidence: 0,
-            reason: "Invalid LLM response format"
-          };
+          responseOk = false;
+          // parsed = {
+          //   decision: "ON",
+          //   confidence: 0,
+          //   reason: "Invalid LLM response format"
+          // };
         }
 
-        resolve({
-          decision: parsed?.decision ?? "ON",
-          confidence: Number(parsed?.confidence ?? 0),
-          reason: parsed?.reason ?? ""
-        });
+        if(responseOk){
+          resolve({
+            decision: parsed?.decision ?? "ON",
+            confidence: Number(parsed?.confidence ?? 0),
+            reason: parsed?.reason ?? ""
+          });
+        }
+        else return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
       })
       .catch(() => {
-        const fallback = shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM);
+        console.log('fallback...')
+        return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
+        // const fallback = shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM);
 
-        resolve({
-          decision: fallback ? "OFF" : "ON",
-          confidence: 0.5,
-          reason: generateLLMExplanation(todayATM)
-        });
+        // resolve({
+        //   decision: fallback ? "OFF" : "ON",
+        //   confidence: 0.5,
+        //   reason: generateLLMExplanation(todayATM)
+        // });
       });
+      //if(!responseOk) return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM));
     });
   }
 
