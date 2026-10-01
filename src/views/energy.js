@@ -41,6 +41,8 @@ export let groups = getEnergy()
 let simulationRunning = false;
 
   function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
+    const explanationSource = document.getElementById("explanationSource")
+    if(explanationSource) explanationSource.textContent = 'FBE'
     const lastHours = todayATM.daily.slice(horaActual-ultimasHorasReferencia) // últimas 3 horas
     const currentHour = todayATM.daily.slice(-1) // últimas 3 horas
     
@@ -143,6 +145,9 @@ let simulationRunning = false;
   }
 
   function shouldShutdownATMWithYesterdayLLM(todayATM, yesterdayATM) {
+    const explanationSource = document.getElementById("explanationSource")
+    if(explanationSource) explanationSource.textContent = 'LLM'
+
     return new Promise((resolve) => {
       console.log('state.useLLMAPI',state.useLLMAPI)
       if(!state.useLLMAPI) {
@@ -601,7 +606,7 @@ function renderShutdownPanel(data) {
         panel.querySelector(".atmExplanation").innerHTML =
             `<span style="font-size:0.9em;">
             <i class="fa-solid fa-brain"></i>
-          IA : ${item.explanation}</span>`;
+          <span id="explanationSource">IA</a> : ${item.explanation}</span>`;
 
         panel.querySelector(".atmConfidence").textContent =
             `confianza: ${Math.round(item.confidence * 100)}%`;
