@@ -250,7 +250,10 @@ let simulationRunning = false;
             reason: parsed?.reason ?? ""
           });
         }
-        else return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
+        else{
+          console.log('LLM no disponible. Activando Fallback Engine...')
+          return resolve(shouldShutdownATMWithYesterday_fallback(todayATM,yesterdayATM))
+        } 
       })
       .catch(() => {
         console.log('fallback...')
