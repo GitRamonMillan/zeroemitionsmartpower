@@ -42,33 +42,50 @@ let simulationRunning = false;
 
 function shouldShutdownATMWithYesterday_fallback(todayATM, yesterdayATM) {
   const lastHours = todayATM.daily.slice(
-      horaActual - ultimasHorasReferencia
+      Math.max(0, horaActual - ultimasHorasReferencia)
   );
 
   const currentHour = todayATM.daily.at(-1);
 
-  const lowConsumption = lastHours.every(h => h.kwh <= 100);
-  const isIdleWindow = lastHours.every(h => h.state === "idle");
+  if (!currentHour || lastHours.length === 0) {
+      return {
+          decision: "ON",
+          confidence: 0.5,
+          reason: "Sin datos suficientes para recomendar el apagado."
+      };
+  }
+
+  const lowConsumption = lastHours.every(h => h?.kwh <= 100);
+  const isIdleWindow = lastHours.every(h => h?.state === "idle");
+
+  if (!yesterdayATM?.daily?.length) {
+      return {
+          decision: "ON",
+          confidence: 0.5,
+          reason: "Sin datos históricos suficientes para recomendar el apagado."
+      };
+  }
 
   const yesterdayHours = Array.from(
       { length: ultimasHorasReferencia },
       (_, i) => {
           const index =
-              (horaActual -
+              (
+                  horaActual -
                   ultimasHorasReferencia +
                   i +
-                  yesterdayATM.daily.length) %
-              yesterdayATM.daily.length;
+                  yesterdayATM.daily.length
+              ) % yesterdayATM.daily.length;
 
           return yesterdayATM.daily[index];
       }
-  );
+  ).filter(Boolean);
 
-  const wasIdleYesterday = yesterdayHours.every(
-      h => h.state === "idle"
-  );
+  const wasIdleYesterday =
+      yesterdayHours.length === ultimasHorasReferencia &&
+      yesterdayHours.every(h => h?.state === "idle");
 
-  const notAtPeak = currentHour.state !== "peak";
+  const notAtPeak = currentHour?.state !== "peak";
 
   const shouldOff =
       lowConsumption &&
